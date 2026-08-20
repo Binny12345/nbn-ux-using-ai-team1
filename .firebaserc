@@ -1,6 +1,6 @@
 {
   "projects": {
-    "default": "REPLACE_WITH_FIREBASE_PROJECT_ID"
+    "default": "nbn-ux-using-ai-team1"
   },
   "targets": {},
   "etags": {}
