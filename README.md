@@ -30,7 +30,7 @@ There's no local emulator and no Docker — the app always talks to a real (free
 ### 1. Bootstrap
 
 ```bash
-git clone https://github.com/your-org/garage-boilerplate my-project
+git clone https://github.com/Binny12345/nbn-ux-using-ai-team1 my-project
 cd my-project
 pnpm run bootstrap
 ```
