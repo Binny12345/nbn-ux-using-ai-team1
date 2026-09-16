@@ -13,7 +13,7 @@ export async function createProject(input: CreateProjectInput) {
     return { success: false, error: parsed.error.errors[0]?.message ?? 'Invalid input' }
   }
 
-  const { name, description, creatorRole } = parsed.data
+  const { name, description } = parsed.data
 
   const projectRef = adminDb.collection('project').doc()
 
@@ -26,7 +26,7 @@ export async function createProject(input: CreateProjectInput) {
   })
 
   await projectRef.collection('members').doc(session.uid).set({
-    role: creatorRole,
+    role: 'PM', // creator is always PM, per UX decision
     joinedAt: FieldValue.serverTimestamp(),
   })
 
