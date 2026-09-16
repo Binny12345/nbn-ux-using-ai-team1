@@ -1,12 +1,17 @@
 import type { Metadata } from 'next'
 import { getServerSession } from '@/actions/auth.actions'
 import { adminDb } from '@/lib/firebase/admin'
+import { redirect } from 'next/navigation'
+
 
 export const metadata: Metadata = {
   title: 'Dashboard',
 }
 
 export default async function DashboardPage() {
+    redirect('/projects')
+
+
   const session = await getServerSession()
   const profileSnap = session ? await adminDb.collection('users').doc(session.uid).get() : null
 
