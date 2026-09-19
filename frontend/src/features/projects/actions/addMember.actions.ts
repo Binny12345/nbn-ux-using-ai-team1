@@ -18,7 +18,7 @@ export async function addMember(input: z.infer<typeof addMemberSchema>) {
 
   const { projectId, email, role } = parsed.data
 
-  const projectRef = adminDb.collection('project').doc(projectId)
+  const projectRef = adminDb.collection('projects').doc(projectId)
   const projectDoc = await projectRef.get()
 
   if (!projectDoc.exists) return { success: false, error: 'Project not found' }

@@ -5,7 +5,7 @@ export async function getUserRoleForProject(
   uid: string
 ): Promise<string | null> {
   const memberDoc = await adminDb
-    .collection('project')
+    .collection('projects')
     .doc(projectId)
     .collection('members')
     .doc(uid)

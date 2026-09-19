@@ -15,7 +15,7 @@ export async function createProject(input: CreateProjectInput) {
 
   const { name, description } = parsed.data
 
-  const projectRef = adminDb.collection('project').doc()
+  const projectRef = adminDb.collection('projects').doc()
 
   await projectRef.set({
     name,

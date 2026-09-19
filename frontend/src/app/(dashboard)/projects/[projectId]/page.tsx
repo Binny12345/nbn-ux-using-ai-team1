@@ -17,7 +17,7 @@ export default async function ProjectPage({
     redirect('/projects')
   }
 
-  const projectDoc = await adminDb.collection('project').doc(projectId).get()
+  const projectDoc = await adminDb.collection('projects').doc(projectId).get()
   const project = projectDoc.data()
 
   return (
