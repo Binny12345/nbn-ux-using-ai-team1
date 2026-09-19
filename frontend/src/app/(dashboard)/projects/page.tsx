@@ -6,7 +6,7 @@ export default async function ProjectsPage() {
   const session = await requireAuth()
 
   const snapshot = await adminDb
-    .collection('project')
+    .collection('projects')
     .where('memberIds', 'array-contains', session.uid)
     .get()
 
