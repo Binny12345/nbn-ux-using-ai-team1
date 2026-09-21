@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { requireAuth } from '@/actions/auth.actions'
 import { getUserRoleForProject } from '@/features/projects/lib/roles'
 import { adminDb } from '@/lib/firebase/admin'
-import { AddMemberForm } from '@/features/projects/components/AddMemberForm'
+import { ChatSessionUI } from '@/features/chat/components/ChatSessionUI'
 
 export default async function ProjectPage({
   params,
@@ -18,15 +18,21 @@ export default async function ProjectPage({
   }
 
   const projectDoc = await adminDb.collection('projects').doc(projectId).get()
-  const project = projectDoc.data()
+  const projectData = projectDoc.data()
+
+  const userDoc = await adminDb.collection('users').doc(session.uid).get()
+  const displayName = (userDoc.data()?.displayName as string | undefined) ?? session.email ?? 'You'
 
   return (
-    <div className="mx-auto max-w-2xl py-8">
-      <h1 className="text-2xl font-bold">{project?.name}</h1>
-      <p className="text-sm text-zinc-500">Your role: {role}</p>
-      <p className="mt-2 text-sm">{project?.description}</p>
-
-      {role === 'PM' && <AddMemberForm projectId={projectId} />}
-    </div>
+    <ChatSessionUI
+      project={{
+        id: projectId,
+        name: projectData?.name ?? 'Untitled project',
+        updatedAt: projectData?.updatedAt?.toDate?.() ?? null,
+      }}
+      currentUser={{ name: displayName, role: role! }}
+      contextSummary={null} // wire up once John's context read endpoint exists
+      artifacts={[]} // wire up once artifacts subcollection is read
+    />
   )
 }

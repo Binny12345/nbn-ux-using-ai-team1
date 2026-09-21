@@ -23,6 +23,7 @@ export async function createProject(input: CreateProjectInput) {
     createdBy: session.uid,
     memberIds: [session.uid],
     status: 'active',
+    updatedAt: FieldValue.serverTimestamp(),
   })
 
   await projectRef.collection('members').doc(session.uid).set({
