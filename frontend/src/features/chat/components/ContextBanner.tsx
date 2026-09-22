@@ -4,9 +4,9 @@ interface ContextBannerProps {
   contextSummary: string | null
 }
 
-export function ContextBanner({ contextSummary }: ContextBannerProps) {
+export function ContextBanner({ contextSummary }: { contextSummary: string | null }) {
   return (
-    <div className="mx-auto mb-4 max-w-md rounded-md border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-600">
+    <div className="mx-auto mb-4 max-w-md rounded-md border border-zinc-800 bg-white px-4 py-3 text-sm text-zinc-600">
       {contextSummary ? (
         <>
           <p className="mb-1 font-medium text-zinc-700">Shared context for this project</p>

@@ -37,10 +37,12 @@ export function ChatSessionUI({ project, currentUser, contextSummary, artifacts 
   }
 
   return (
-    <div className="relative flex h-[calc(100vh-3.5rem)] flex-col">
+    <div className="relative flex h-screen flex-col bg-zinc-950">
       <ChatTopBar
         project={project}
         currentUser={currentUser}
+        fileCount={artifacts.length}
+        isPM={currentUser.role === 'PM'}
         onOpenArtifacts={() => setShowArtifacts(true)}
         onOpenInvite={() => setShowInvite(true)}
       />
