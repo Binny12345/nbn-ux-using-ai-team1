@@ -9,15 +9,22 @@ export const metadata: Metadata = {
 }
 
 export default async function DashboardPage() {
-    redirect('/projects')
-
-
   const session = await getServerSession()
-  const profileSnap = session ? await adminDb.collection('users').doc(session.uid).get() : null
 
-  const displayName = profileSnap?.exists
+  if (!session) {
+    redirect('/auth/signin')
+  }
+  
+
+  const profileSnap = await adminDb
+      .collection('users')
+      .doc(session.uid)
+      .get()
+
+  const displayName = profileSnap.exists
     ? (profileSnap.data()?.displayName as string | null)
     : null
+
   const greetingName = displayName ?? session?.email ?? null
 
   return (
