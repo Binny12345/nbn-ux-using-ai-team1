@@ -33,7 +33,12 @@ export async function addMember(input: z.infer<typeof addMemberSchema>) {
     return { success: false, error: 'No user found with that email' }
   }
 
-  const memberUid = userQuery.docs[0].id
+  const matchedDoc = userQuery.docs[0]
+  
+  if (!matchedDoc) {
+    return { success: false, error: 'No user found with that email' }
+  }
+  const memberUid = matchedDoc.id
 
   // Prevent duplicate invites
   const existingMemberIds = projectDoc.data()?.memberIds ?? []
