@@ -21,18 +21,15 @@ async function syncUserProfile(user: User): Promise<UserProfile> {
   const snap = await getDoc(profileRef)
 
   if (!snap.exists()) {
-    const newProfile: Omit<UserProfile, 'createdAt' | 'updatedAt'> = {
+    const newProfile = {
       uid: user.uid,
       email: user.email ?? '',
       displayName: user.displayName,
       photoURL: user.photoURL,
-      role: 'user',
-      _schemaVersion: 1,
     }
     await setDoc(profileRef, {
       ...newProfile,
       createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
     })
     const createdSnap = await getDoc(profileRef)
     if (!createdSnap.exists()) {

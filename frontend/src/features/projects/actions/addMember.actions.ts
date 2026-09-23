@@ -27,18 +27,19 @@ export async function addMember(input: z.infer<typeof addMemberSchema>) {
   }
 
   // Look up the user by email — confirms they actually exist before adding them
-  const userQuery = await adminDb.collection('users').where('email', '==', email).limit(1).get()
+  const userQuery = await adminDb
+      .collection('users')
+      .where('email', '==', email)
+      .limit(1)
+      .get()
 
-  if (userQuery.empty) {
-    return { success: false, error: 'No user found with that email' }
-  }
+    const firstUserDoc = userQuery.docs[0]
 
-  const matchedDoc = userQuery.docs[0]
-  
-  if (!matchedDoc) {
-    return { success: false, error: 'No user found with that email' }
-  }
-  const memberUid = matchedDoc.id
+    if (!firstUserDoc) {
+      return { success: false, error: 'No user found with that email' }
+    }
+
+    const memberUid = firstUserDoc.id
 
   // Prevent duplicate invites
   const existingMemberIds = projectDoc.data()?.memberIds ?? []

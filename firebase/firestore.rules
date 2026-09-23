@@ -40,19 +40,17 @@ service cloud.firestore {
     // Admins can read any profile.
     // Creation is triggered by AuthProvider on first sign-in (syncUserProfile).
     match /users/{userId} {
-      allow read: if isAuthenticated() && (isOwner(userId) || isAdmin()) && notDeleted();
+      allow read: if isAuthenticated() && isOwner(userId) && notDeleted();
 
       allow create: if isAuthenticated() && isOwner(userId)
         && request.resource.data.uid == request.auth.uid
-        && request.resource.data.keys().hasAll(['uid', 'email', 'role', 'createdAt', 'updatedAt', '_schemaVersion'])
-        && request.resource.data.keys().hasOnly(['uid', 'email', 'displayName', 'photoURL', 'role', 'createdAt', 'updatedAt', '_schemaVersion'])
-        && request.resource.data.role == 'user';  // only admin SDK can set 'admin' role
+        && request.resource.data.keys().hasAll(['uid', 'email', 'createdAt'])
+        && request.resource.data.keys().hasOnly(['uid', 'email', 'displayName', 'photoURL', 'createdAt'])
 
       allow update: if isAuthenticated() && isOwner(userId)
-        && request.resource.data.uid == resource.data.uid    // uid is immutable
-        && request.resource.data.role == resource.data.role  // role is immutable by user
-        && request.resource.data.keys().hasOnly(['uid', 'email', 'displayName', 'photoURL', 'role', 'createdAt', 'updatedAt', '_schemaVersion']);
-
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.keys().hasOnly(['uid', 'email', 'displayName', 'photoURL', 'createdAt']);
+        
       allow delete: if false; // soft-delete only — set deletedAt field instead
     }
 
