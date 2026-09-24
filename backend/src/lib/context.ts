@@ -1,14 +1,17 @@
 import { adminDb } from './firebase'
 import { HttpError } from './errors'
-import type { ContextEntry } from './contextTypes'
+import type { ContextEntry, ContextStatus } from './contextTypes'
 
-// One stored contribution as held in Firestore (a project's context sections).
-interface StoredSection {
+// One context document as stored under projects/{id}/context/{entryId}. */
+interface StoredEntry {
   content: string
-  type?: string
+  type: string
   contributedBy: string
   role: string
+  sourceChatId?: string
+  status?: ContextStatus
 }
+
 
 // A project member, as stored on the project document.
 interface ProjectMember {
@@ -35,16 +38,19 @@ export async function buildProjectContext(projectId: string, uid: string): Promi
 
   const entries: ContextEntry[] = []
   contextSnap.forEach((doc) => {
-    const sections = (doc.get('sections') as StoredSection[] | undefined) ?? []
-    for (const s of sections) {
-      entries.push({
-        content: s.content,
-        type: s.type ?? 'note',
-        contributedBy: s.contributedBy,
-        role: s.role,
-      })
-    }
+    const d = doc.data() as StoredEntry
+    // Skip superseded entries — only Active context is used.
+    if (d.status && d.status !== 'Active') return
+    entries.push({
+      content: d.content,
+      type: d.type,
+      contributedBy: d.contributedBy,
+      role: d.role,
+      sourceChatId: d.sourceChatId ?? '',
+      status: 'Active',
+    })
   })
+
 
   return entries
 }

@@ -14,7 +14,7 @@ import { HttpError } from '../../../src/lib/errors'
 const app = createApp({ verifyToken: mockVerifyToken })
 
 const sampleContext: ContextEntry[] = [
-  { content: 'requirements go here', type: 'requirement', contributedBy: 'u1', role: 'BA' },
+  { content: 'requirements go here', type: 'requirement', contributedBy: 'u1', role: 'BA', sourceChatId: 'chat1', status: 'Active' },
 ]
 
 describe('POST /api/chat', () => {
