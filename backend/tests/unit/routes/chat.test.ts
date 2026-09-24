@@ -46,7 +46,7 @@ describe('POST /api/chat', () => {
       .send({ projectId: 'p1', message: 'summarise the requirements' })
 
     expect(res.status).toBe(200)
-    expect(res.body).toEqual({ reply: 'Here is my response.' })
+    expect(res.body).toEqual({ reply: 'Here is my response.', entriesWritten: 0 })
     expect(buildProjectContext).toHaveBeenCalledWith('p1', mockUser.uid)
     // The pulled context array was handed to the AI as-is.
     expect(generateReply).toHaveBeenCalledWith(sampleContext, 'summarise the requirements')
