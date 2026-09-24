@@ -14,20 +14,14 @@ import type { ContextStatus } from './contextTypes'
  * entry keeps a single author and its own status. New entries are always
  * written 'Active' — matching the capitalisation buildProjectContext filters on.
  *
- * Role is resolved from the project's `members` array, the same membership
- * source buildProjectContext uses, so a non-member cannot write.
+ * Role is resolved from the project's members subcollection, the same
+ * membership source buildProjectContext uses, so a non-member cannot write.
  */
 
 // A durable entry as returned by extractEntries() — content + a type string.
 export interface ExtractedEntry {
   content: string
   type: string
-}
-
-// A project member as stored on the project document's `members` array.
-interface ProjectMember {
-  uid: string
-  role: string
 }
 
 // New entries are written Active. Must match ContextStatus casing exactly,
@@ -58,14 +52,14 @@ export async function persistContext(
     throw HttpError.notFound('Project', projectId)
   }
 
-  // Resolve the caller's role from members — same source the reader uses.
-  // Treat a non-member as not-found (don't leak project existence).
-  const members = (projectSnap.get('members') as ProjectMember[] | undefined) ?? []
-  const member = members.find((m) => m.uid === uid)
-  if (!member) {
+  // Resolve the caller's role from the members subcollection — same source
+  // buildProjectContext uses. Treat a non-member as not-found (don't leak
+  // project existence).
+  const memberSnap = await projectRef.collection('members').doc(uid).get()
+  if (!memberSnap.exists) {
     throw HttpError.notFound('Project', projectId)
   }
-  const role = member.role
+  const role = memberSnap.get('role') as string
 
   // One document per entry, committed atomically.
   const contextRef = projectRef.collection('context')
