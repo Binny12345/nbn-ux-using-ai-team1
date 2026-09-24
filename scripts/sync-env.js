@@ -88,6 +88,7 @@ const backendLines = [
   `FIREBASE_SERVICE_ACCOUNT_KEY_BASE64=${get('FIREBASE_SERVICE_ACCOUNT_KEY_BASE64')}`,
   `CORS_ORIGIN=${get('CORS_ORIGIN')}`,
   `PORT=${get('PORT')}`,
+  `OPENROUTER_API_KEY=${get('OPENROUTER_API_KEY')}`,
 ]
 
 fs.writeFileSync(path.join(root, 'frontend', '.env.local'), frontendLines.join('\n') + '\n')
