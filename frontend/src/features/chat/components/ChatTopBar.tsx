@@ -2,9 +2,12 @@
 
 'use client'
 
+import { useSyncExternalStore } from 'react'
 import Link from 'next/link'
 import { Menu, Folder, UserPlus } from 'lucide-react'
 import type { ProjectSummary, UserProfile } from '../types'
+
+const noopSubscribe = () => () => {}
 
 interface ChatTopBarProps {
   project: ProjectSummary
@@ -16,6 +19,17 @@ interface ChatTopBarProps {
 }
 
 export function ChatTopBar({ project, currentUser, fileCount, isPM, onOpenArtifacts, onOpenInvite }: ChatTopBarProps) {
+  // false during SSR and hydration, true afterwards — the browser's locale/timezone
+  // differ from the server's, so locale-formatted dates must only render client-side.
+  const isClient = useSyncExternalStore(noopSubscribe, () => true, () => false)
+
+  let lastEdited = 'No edits yet'
+  if (project.updatedAt) {
+    lastEdited = isClient
+      ? `Last edited ${project.updatedAt.toLocaleDateString()} at ${project.updatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+      : ' '
+  }
+
   return (
     <div className="flex items-center justify-between border-b border-zinc-800 px-6 py-3">
       <div className="flex items-center gap-5">
@@ -44,11 +58,7 @@ export function ChatTopBar({ project, currentUser, fileCount, isPM, onOpenArtifa
 
       <div className="text-center">
         <p className="text-sm font-semibold text-white">{project.name}</p>
-        <p className="text-xs text-zinc-500">
-          {project.updatedAt
-            ? `Last edited ${project.updatedAt.toLocaleDateString()} at ${project.updatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-            : 'No edits yet'}
-        </p>
+        <p className="text-xs text-zinc-500">{lastEdited}</p>
       </div>
 
       <div className="flex items-center gap-3">

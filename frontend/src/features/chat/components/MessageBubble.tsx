@@ -14,7 +14,9 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
       >
         <p>{message.content}</p>
         <p className={`mt-1 text-[10px] ${isUser ? 'text-zinc-300' : 'text-zinc-400'}`}>
-          {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          {message.failed
+            ? 'Not sent'
+            : message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </p>
       </div>
     </div>
