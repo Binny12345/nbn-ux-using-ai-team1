@@ -14,6 +14,10 @@ overrides:
   postcss: '^8.5.18'
   # next also bundles an old sharp (image optimization) — force the patched line.
   sharp: '^0.35.0'
+  # firebase-admin@14 pulls jwks-rsa@4 -> jose@6 (ESM-only), which crashes with
+  # ERR_REQUIRE_ESM in the Vercel serverless (CommonJS) runtime. jwks-rsa@3 uses
+  # jose@4 (CJS) and is API-compatible for firebase-admin's usage.
+  jwks-rsa: '^3.2.2'
   # js-yaml (CVE-2026-59870) and nanoid highs from `pnpm audit` are disabled
   # here — see README.md § Security for the manual fix.
   # js-yaml: '^4.3.1'
