@@ -15,7 +15,7 @@ function getClient(): OpenAI {
 }
 
 // Model id in OpenRouter form. Verify at https://openrouter.ai/models.
-const MODEL = 'inclusionai/ling-3.0-flash-vl:free'
+const MODEL = 'qwen/qwen3.8-27b:free'
 const MAX_TOKENS = 1024
 
 // Render context entries into an attributed system prompt (FR-6).
