@@ -12,7 +12,6 @@ interface StoredEntry {
   status?: ContextStatus
 }
 
-
 export async function buildProjectContext(projectId: string, uid: string): Promise<ContextEntry[]> {
   const projectRef = adminDb.collection('projects').doc(projectId)
   const projectSnap = await projectRef.get()
@@ -43,7 +42,6 @@ export async function buildProjectContext(projectId: string, uid: string): Promi
       status: 'Active',
     })
   })
-
 
   return entries
 }

@@ -35,6 +35,7 @@ pnpm run env:sync       # also runs automatically before `pnpm run dev`
 | `CORS_ORIGIN` | No | No | Allowed CORS origin for the API (empty = deny all cross-origin) |
 | `PORT` | No | No | Local Functions dev server port (default `5001`) |
 | `OPENROUTER_API_KEY` | Backend | **Yes** | Server-only key for the AI chat endpoint (`POST /api/chat`), via OpenRouter. |
+| `NEXT_PUBLIC_API_URL` | No | Yes | Base URL of the deployed backend that the chat UI calls (no trailing slash). Baked in at build time — redeploy the frontend after changing it. |
 | `STITCH_API_KEY` | **Yes** | No | Google Stitch key for the Claude Code MCP (stays in root `.env` only) |
 
 `NEXT_PUBLIC_*` values are compiled into the browser bundle — that prefix must **never** appear on a secret (a Claude Code hook blocks this).

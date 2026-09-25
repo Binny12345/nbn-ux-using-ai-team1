@@ -3,6 +3,15 @@ export interface ChatMessage {
   sender: 'user' | 'ai'
   content: string
   timestamp: Date
+  failed?: boolean
+}
+
+export interface ContextEntry {
+  id: string
+  content: string
+  type: string
+  role: string
+  contributorName: string | null
 }
 
 export interface Artifact {

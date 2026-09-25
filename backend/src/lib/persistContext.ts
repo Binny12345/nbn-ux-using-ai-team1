@@ -1,6 +1,5 @@
-import { adminDb } from './firebase'
+import { adminDb, FieldValue } from './firebase'
 import { HttpError } from './errors'
-import { FieldValue } from 'firebase-admin/firestore'
 import type { ContextStatus } from './contextTypes'
 
 /**

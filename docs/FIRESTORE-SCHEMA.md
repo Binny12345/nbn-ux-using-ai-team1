@@ -46,4 +46,51 @@ This enables **lazy migration** — when a document is read, check `_schemaVersi
 
 ---
 
+## `projects` collection
+
+**Path:** `/projects/{projectId}`
+**Access:** Server-only. Written and read through the Admin SDK (frontend Server Actions and the backend); client SDK access is denied by the default-deny security rule.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | `string` | Yes | Project name |
+| `description` | `string` | Yes | Short project description |
+| `createdBy` | `string` | Yes | Firebase Auth UID of the creator (always the PM) |
+| `memberIds` | `string[]` | Yes | UIDs of all members. Denormalised copy of the `members` subcollection, used to list a user's projects (`array-contains`) |
+| `status` | `string` | Yes | `'active'` |
+| `updatedAt` | `Timestamp` | Yes | Last update (server timestamp) |
+
+**Creation:** `createProject` Server Action — also creates the creator's `members` document with role `PM`.
+**Note:** `_schemaVersion` is not set on this collection yet.
+
+### `members` subcollection
+
+**Path:** `/projects/{projectId}/members/{uid}` (document ID is the member's UID)
+**Access:** Server-only.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `role` | `'BA' \| 'UX' \| 'PM' \| 'Dev'` | Yes | The member's role **in this project** (roles are per project) |
+| `joinedAt` | `Timestamp` | Yes | When the member was added |
+
+This subcollection is the source of truth for membership and role. Both the frontend (`getUserRoleForProject`) and the backend (`buildProjectContext`, `persistContext`) check it. Only the PM can add members (`addMember` Server Action).
+
+### `context` subcollection
+
+**Path:** `/projects/{projectId}/context/{entryId}` (auto-generated ID)
+**Access:** Server-only. Written by the backend `POST /api/chat`; read by the backend (to build the AI prompt) and by the project page (shared-context banner).
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `content` | `string` | Yes | The durable fact, decision or requirement extracted from a chat exchange |
+| `type` | `'decision' \| 'requirement' \| 'note'` | Yes | What kind of entry it is |
+| `contributedBy` | `string` | Yes | UID of the user whose chat produced it. Set by the server from the verified token — never from the request body |
+| `role` | `string` | Yes | The contributor's project role at write time (copied from their `members` document) |
+| `sourceChatId` | `string` | Yes | The chat session ID the entry was extracted from |
+| `status` | `'Active' \| 'Outdated'` | Yes | Only `Active` entries are used as context; `Outdated` is reserved for superseded entries |
+| `createdAt` | `Timestamp` | Yes | Server timestamp |
+
+**Design:** append-only — one document per entry, never merged or overwritten, so concurrent writers cannot clobber each other and every entry keeps a single author (attribution).
+**Note:** `_schemaVersion` is not set on this collection yet.
+
 <!-- Add new collection schemas below using the /firebase-collection skill -->
