@@ -3,15 +3,12 @@ import type { Request, Response, NextFunction } from 'express'
 import { z } from 'zod'
 import type { AuthenticatedRequest } from '../middleware/auth'
 import { HttpError } from '../lib/errors'
-import { buildProjectContext } from '../lib/context'
+import { buildProjectContext, getUserRoleForProject } from '../lib/context'
 import { generateReply, extractEntries } from '../lib/ai'
 import { persistContext } from '../lib/persistContext'
 
 const router: ExpressRouter = Router()
 
-// sessionId is required so extracted entries can record which chat they came
-// from (sourceChatId). The client generates it once on entering a project chat
-// and sends it with every turn.
 const chatSchema = z
   .object({
     projectId: z.string().min(1, 'projectId is required'),
@@ -31,16 +28,20 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
 
     const { projectId, sessionId, message } = parsed.data
 
-    // Read side (partner's): load the project's active context, membership-gated.
+    // Read side: load the project's active context, membership-gated.
     const context = await buildProjectContext(projectId, user.uid)
 
-    // Generate the reply from that context (partner's OpenRouter call).
-    const reply = await generateReply(context, message)
+    // Look up the current speaker's role for this project, so the AI knows
+    // who it's actually talking to right now, separate from historical context.
+    const role = await getUserRoleForProject(projectId, user.uid)
+    if (!role) {
+      return next(HttpError.notFound('Project', projectId))
+    }
 
-    // Write side (this feature): pull durable entries from the exchange and
-    // persist them, attributed. Best-effort — a failure to extract or write
-    // must not fail the user's chat turn, so it is caught and logged and the
-    // reply is still returned.
+    // Generate the reply, now with explicit speaker identity.
+    const reply = await generateReply(context, message, { uid: user.uid, role })
+
+    // Write side: pull durable entries from the exchange and persist them, attributed.
     let entriesWritten = 0
     try {
       const extracted = await extractEntries(message, reply)

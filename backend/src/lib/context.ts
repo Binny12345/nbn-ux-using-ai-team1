@@ -45,3 +45,16 @@ export async function buildProjectContext(projectId: string, uid: string): Promi
 
   return entries
 }
+
+export async function getUserRoleForProject(projectId: string, uid: string): Promise<string | null> {
+  const memberSnap = await adminDb
+    .collection('projects')
+    .doc(projectId)
+    .collection('members')
+    .doc(uid)
+    .get()
+
+  if (!memberSnap.exists) return null
+
+  return (memberSnap.data()?.role as string | undefined) ?? null
+}
