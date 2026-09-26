@@ -73,13 +73,24 @@ async function complete(
 
 // Render context entries into an attributed system prompt (FR-6).
 function formatContext(context: ContextEntry[]): string {
-  if (context.length === 0) return ''
-  return context
+  const intro =
+    'You are an AI assistant helping a team collaborate on a shared project. ' +
+    'The following are contributions from different team members, each labeled ' +
+    'with their role and identity. Do not assume facts stated by one contributor ' +
+    '(e.g. their name) apply to anyone else, including the person you are currently talking to.'
+
+  if (context.length === 0) return intro
+  const entries = context
     .map((e) => `${e.role} (${e.contributedBy}) — ${e.type}:\n${e.content}`)
     .join('\n\n')
+  return `${intro}\n\n${entries}`
 }
 
-export async function generateReply(context: ContextEntry[], message: string): Promise<string> {
+export async function generateReply(
+  context: ContextEntry[],
+  message: string,
+  currentUser: { uid: string; role: string }
+): Promise<string> {
   const systemPrompt = formatContext(context)
   try {
     const messages: OpenAI.Chat.ChatCompletionMessageParam[] = []

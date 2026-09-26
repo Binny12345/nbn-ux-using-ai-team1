@@ -4,11 +4,14 @@ import { createApp } from '../../../src/app'
 import { mockVerifyToken, mockUser } from '../../setup'
 import type { ContextEntry } from '../../../src/lib/contextTypes'
 
-vi.mock('../../../src/lib/context', () => ({ buildProjectContext: vi.fn() }))
+vi.mock('../../../src/lib/context', () => ({
+  buildProjectContext: vi.fn(),
+  getUserRoleForProject: vi.fn(),
+}))
 vi.mock('../../../src/lib/ai', () => ({ generateReply: vi.fn(), extractEntries: vi.fn() }))
 vi.mock('../../../src/lib/persistContext', () => ({ persistContext: vi.fn() }))
 
-import { buildProjectContext } from '../../../src/lib/context'
+import { buildProjectContext, getUserRoleForProject } from '../../../src/lib/context'
 import { generateReply, extractEntries } from '../../../src/lib/ai'
 import { persistContext } from '../../../src/lib/persistContext'
 import { HttpError } from '../../../src/lib/errors'
@@ -38,6 +41,8 @@ describe('POST /api/chat', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    // Default: caller is a valid project member with role BA, unless overridden per-test.
+    vi.mocked(getUserRoleForProject).mockResolvedValue('BA')
   })
 
   it('returns 401 without a valid session', async () => {
@@ -72,7 +77,11 @@ describe('POST /api/chat', () => {
     expect(res.status).toBe(200)
     expect(res.body).toEqual({ reply: 'Here is my response.', entriesWritten: 1 })
     expect(buildProjectContext).toHaveBeenCalledWith('p1', mockUser.uid)
-    expect(generateReply).toHaveBeenCalledWith(sampleContext, 'summarise the requirements')
+    expect(getUserRoleForProject).toHaveBeenCalledWith('p1', mockUser.uid)
+    expect(generateReply).toHaveBeenCalledWith(sampleContext, 'summarise the requirements', {
+      uid: mockUser.uid,
+      role: 'BA',
+    })
     expect(extractEntries).toHaveBeenCalledWith(
       'summarise the requirements',
       'Here is my response.'
@@ -119,6 +128,16 @@ describe('POST /api/chat', () => {
   it('returns 404 when the caller is not a project member', async () => {
     const post = authed()
     vi.mocked(buildProjectContext).mockRejectedValue(HttpError.notFound('Project', 'p1'))
+    const res = await post(validBody)
+    expect(res.status).toBe(404)
+    expect(generateReply).not.toHaveBeenCalled()
+  })
+
+  it('returns 404 when the caller has no role on the project', async () => {
+    const post = authed()
+    vi.mocked(buildProjectContext).mockResolvedValue(sampleContext)
+    vi.mocked(getUserRoleForProject).mockResolvedValue(null)
+
     const res = await post(validBody)
     expect(res.status).toBe(404)
     expect(generateReply).not.toHaveBeenCalled()
