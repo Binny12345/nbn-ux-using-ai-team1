@@ -1,6 +1,6 @@
 import OpenAI from 'openai'
 import { HttpError } from './errors'
-import type { ContextEntry } from './contextTypes'
+import type { ProjectBriefing } from './contextTypes'
 
 let client: OpenAI | null = null
 
@@ -71,33 +71,45 @@ async function complete(
   return ''
 }
 
-// Render context entries into an attributed system prompt (FR-6).
-function formatContext(context: ContextEntry[]): string {
-  const intro =
-    'You are an AI assistant helping a team collaborate on a shared project. ' +
-    'The following are contributions from different team members, each labeled ' +
-    'with their role and identity. Do not assume facts stated by one contributor ' +
-    '(e.g. their name) apply to anyone else, including the person you are currently talking to.'
+// Render the full project briefing into a system prompt: who the AI is
+// talking to, who else is on the project, what the project is, and the
+// shared context contributed so far — all known before the user says anything.
+function formatBriefing(briefing: ProjectBriefing): string {
+  const memberList = briefing.members
+    .map((m) => {
+      const name = m.displayName ?? 'Unnamed user'
+      const you =
+        m.uid === briefing.currentUser.uid ? ' — this is who you are currently talking to' : ''
+      return `- ${name} (${m.role})${you}`
+    })
+    .join('\n')
 
-  if (context.length === 0) return intro
-  const entries = context
-    .map((e) => `${e.role} (${e.contributedBy}) — ${e.type}:\n${e.content}`)
+  const contextText =
+    briefing.context.length > 0
+      ? briefing.context
+          .map((e) => `${e.role} (${e.contributedBy}) — ${e.type}:\n${e.content}`)
+          .join('\n\n')
+      : 'No shared context has been contributed yet.'
+
+  return [
+    `You are an AI assistant embedded in a shared collaboration workspace for the project "${briefing.projectName}".`,
+    briefing.projectDescription ? `Project description: ${briefing.projectDescription}` : '',
+    "Your job is to help this project's team members work with and build on the shared context below — answering questions, drafting, summarizing, and coordinating. You are a tool augmenting their work, not a team member with your own identity, opinions, or name.",
+    `Project members:\n${memberList}`,
+    `You are currently talking to: ${briefing.currentUser.role} (uid ${briefing.currentUser.uid}). If they ask who they are, answer directly using this information, do not say it is unknown.`,
+    `Shared context contributed so far, attributed by role and user id. Do not assume one person's self-described facts (like a name) apply to anyone else, including the current speaker, unless the context entry is explicitly credited to them:\n\n${contextText}`,
+  ]
+    .filter(Boolean)
     .join('\n\n')
-  return `${intro}\n\n${entries}`
 }
 
-export async function generateReply(
-  context: ContextEntry[],
-  message: string,
-  currentUser: { uid: string; role: string }
-): Promise<string> {
-  const systemPrompt = formatContext(context)
+export async function generateReply(briefing: ProjectBriefing, message: string): Promise<string> {
+  const systemPrompt = formatBriefing(briefing)
   try {
-    const messages: OpenAI.Chat.ChatCompletionMessageParam[] = []
-    if (systemPrompt.length > 0) {
-      messages.push({ role: 'system', content: systemPrompt })
-    }
-    messages.push({ role: 'user', content: message })
+    const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: message },
+    ]
 
     return await complete(messages, REPLY_BUDGET_MS)
   } catch (err) {
@@ -139,12 +151,9 @@ export async function extractEntries(
       type: string
     }>
     if (!Array.isArray(parsed)) return []
-    // Keep only well-formed entries.
     return parsed.filter((e) => e && typeof e.content === 'string' && typeof e.type === 'string')
   } catch (err) {
     if (err instanceof HttpError) throw err
-    // If the model returns non-JSON or the call fails, save nothing rather than
-    // corrupting context — the write side is best-effort.
     console.error('extractEntries: OpenRouter call or parse failed:', err)
     return []
   }
