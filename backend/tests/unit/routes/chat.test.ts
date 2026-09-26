@@ -2,32 +2,35 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import request from 'supertest'
 import { createApp } from '../../../src/app'
 import { mockVerifyToken, mockUser } from '../../setup'
-import type { ContextEntry } from '../../../src/lib/contextTypes'
+import type { ProjectBriefing } from '../../../src/lib/contextTypes'
 
-vi.mock('../../../src/lib/context', () => ({
-  buildProjectContext: vi.fn(),
-  getUserRoleForProject: vi.fn(),
-}))
+vi.mock('../../../src/lib/context', () => ({ buildProjectBriefing: vi.fn() }))
 vi.mock('../../../src/lib/ai', () => ({ generateReply: vi.fn(), extractEntries: vi.fn() }))
 vi.mock('../../../src/lib/persistContext', () => ({ persistContext: vi.fn() }))
 
-import { buildProjectContext, getUserRoleForProject } from '../../../src/lib/context'
+import { buildProjectBriefing } from '../../../src/lib/context'
 import { generateReply, extractEntries } from '../../../src/lib/ai'
 import { persistContext } from '../../../src/lib/persistContext'
 import { HttpError } from '../../../src/lib/errors'
 
 const app = createApp({ verifyToken: mockVerifyToken })
 
-const sampleContext: ContextEntry[] = [
-  {
-    content: 'requirements go here',
-    type: 'requirement',
-    contributedBy: 'u1',
-    role: 'BA',
-    sourceChatId: 'chat1',
-    status: 'Active',
-  },
-]
+const sampleBriefing: ProjectBriefing = {
+  projectName: 'Test Project',
+  projectDescription: 'A test project',
+  members: [{ uid: mockUser.uid, role: 'BA', displayName: 'Test User' }],
+  currentUser: { uid: mockUser.uid, role: 'BA' },
+  context: [
+    {
+      content: 'requirements go here',
+      type: 'requirement',
+      contributedBy: 'u1',
+      role: 'BA',
+      sourceChatId: 'chat1',
+      status: 'Active',
+    },
+  ],
+}
 
 const validBody = { projectId: 'p1', sessionId: 's1', message: 'summarise the requirements' }
 
@@ -41,8 +44,7 @@ describe('POST /api/chat', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    // Default: caller is a valid project member with role BA, unless overridden per-test.
-    vi.mocked(getUserRoleForProject).mockResolvedValue('BA')
+    vi.mocked(buildProjectBriefing).mockResolvedValue(sampleBriefing)
   })
 
   it('returns 401 without a valid session', async () => {
@@ -61,13 +63,12 @@ describe('POST /api/chat', () => {
     const post = authed()
     const res = await post({ projectId: 'p1', message: 'hi' })
     expect(res.status).toBe(400)
-    expect(buildProjectContext).not.toHaveBeenCalled()
+    expect(buildProjectBriefing).not.toHaveBeenCalled()
   })
 
-  it('pulls context, replies, extracts entries and persists them attributed to the caller and session', async () => {
+  it('pulls the project briefing, replies, extracts entries and persists them attributed to the caller and session', async () => {
     const post = authed()
     const extracted = [{ content: 'Use CSV', type: 'decision' }]
-    vi.mocked(buildProjectContext).mockResolvedValue(sampleContext)
     vi.mocked(generateReply).mockResolvedValue('Here is my response.')
     vi.mocked(extractEntries).mockResolvedValue(extracted)
     vi.mocked(persistContext).mockResolvedValue(1)
@@ -76,12 +77,8 @@ describe('POST /api/chat', () => {
 
     expect(res.status).toBe(200)
     expect(res.body).toEqual({ reply: 'Here is my response.', entriesWritten: 1 })
-    expect(buildProjectContext).toHaveBeenCalledWith('p1', mockUser.uid)
-    expect(getUserRoleForProject).toHaveBeenCalledWith('p1', mockUser.uid)
-    expect(generateReply).toHaveBeenCalledWith(sampleContext, 'summarise the requirements', {
-      uid: mockUser.uid,
-      role: 'BA',
-    })
+    expect(buildProjectBriefing).toHaveBeenCalledWith('p1', mockUser.uid)
+    expect(generateReply).toHaveBeenCalledWith(sampleBriefing, 'summarise the requirements')
     expect(extractEntries).toHaveBeenCalledWith(
       'summarise the requirements',
       'Here is my response.'
@@ -91,7 +88,6 @@ describe('POST /api/chat', () => {
 
   it('reports entriesWritten from persistContext (0 when nothing durable was extracted)', async () => {
     const post = authed()
-    vi.mocked(buildProjectContext).mockResolvedValue([])
     vi.mocked(generateReply).mockResolvedValue('ok')
     vi.mocked(extractEntries).mockResolvedValue([])
     vi.mocked(persistContext).mockResolvedValue(0)
@@ -103,7 +99,6 @@ describe('POST /api/chat', () => {
 
   it('still returns the reply when writing context fails (write-back is best-effort)', async () => {
     const post = authed()
-    vi.mocked(buildProjectContext).mockResolvedValue([])
     vi.mocked(generateReply).mockResolvedValue('Here is my response.')
     vi.mocked(extractEntries).mockResolvedValue([{ content: 'x', type: 'note' }])
     vi.mocked(persistContext).mockRejectedValue(new Error('firestore down'))
@@ -115,7 +110,6 @@ describe('POST /api/chat', () => {
 
   it('does not write anything when the AI reply fails', async () => {
     const post = authed()
-    vi.mocked(buildProjectContext).mockResolvedValue([])
     vi.mocked(generateReply).mockRejectedValue(
       new HttpError(502, 'Bad Gateway', 'The AI service failed to respond')
     )
@@ -127,17 +121,7 @@ describe('POST /api/chat', () => {
 
   it('returns 404 when the caller is not a project member', async () => {
     const post = authed()
-    vi.mocked(buildProjectContext).mockRejectedValue(HttpError.notFound('Project', 'p1'))
-    const res = await post(validBody)
-    expect(res.status).toBe(404)
-    expect(generateReply).not.toHaveBeenCalled()
-  })
-
-  it('returns 404 when the caller has no role on the project', async () => {
-    const post = authed()
-    vi.mocked(buildProjectContext).mockResolvedValue(sampleContext)
-    vi.mocked(getUserRoleForProject).mockResolvedValue(null)
-
+    vi.mocked(buildProjectBriefing).mockRejectedValue(HttpError.notFound('Project', 'p1'))
     const res = await post(validBody)
     expect(res.status).toBe(404)
     expect(generateReply).not.toHaveBeenCalled()
