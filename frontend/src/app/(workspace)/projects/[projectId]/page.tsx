@@ -33,7 +33,7 @@ export default async function ProjectPage({
         name: projectData?.name ?? 'Untitled project',
         updatedAt: projectData?.updatedAt?.toDate?.() ?? null,
       }}
-      currentUser={{ name: displayName, role: role! }}
+      currentUser={{ name: displayName, role: role!, email: session.email ?? null }}
       contextEntries={contextEntries}
       artifacts={[]} // wire up once artifacts subcollection is read
     />
