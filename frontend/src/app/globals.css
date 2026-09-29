@@ -16,6 +16,7 @@
   --marketing-field-bg: #f8faff;
   --marketing-error: #e03b3b;
   --marketing-radius: 1rem;
+  --marketing-danger-bg: #fef2f2;
 }
 
 @theme inline {
@@ -36,6 +37,7 @@
   --color-marketing-field-bg: var(--marketing-field-bg);
   --color-marketing-error: var(--marketing-error);
   --radius-marketing: var(--marketing-radius);
+  --color-marketing-danger-bg: var(--marketing-danger-bg);
 }
 
 @media (prefers-color-scheme: dark) {
