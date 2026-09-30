@@ -17,6 +17,8 @@
   --marketing-error: #e03b3b;
   --marketing-radius: 1rem;
   --marketing-danger-bg: #fef2f2;
+  --marketing-warning-bg: #fff7ed;
+  --marketing-warning: #d4600a;
 }
 
 @theme inline {
@@ -38,6 +40,8 @@
   --color-marketing-error: var(--marketing-error);
   --radius-marketing: var(--marketing-radius);
   --color-marketing-danger-bg: var(--marketing-danger-bg);
+  --color-marketing-warning-bg: var(--marketing-warning-bg);
+  --color-marketing-warning: var(--marketing-warning);
 }
 
 @media (prefers-color-scheme: dark) {

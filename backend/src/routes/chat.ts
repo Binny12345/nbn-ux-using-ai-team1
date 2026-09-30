@@ -34,6 +34,11 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
     // Full project briefing: who's talking, who else is on the project, what
     // the project is, and the shared context contributed so far.
     const briefing = await buildProjectBriefing(projectId, user.uid)
+    
+    //Checks if project is archived
+    if (briefing.status === 'archived') {
+      return next(HttpError.badRequest('This project is archived and no longer accepts new messages'))
+    }
 
     // Generate the reply from that briefing.
     const reply = await generateReply(briefing, message)

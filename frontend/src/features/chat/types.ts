@@ -61,3 +61,10 @@ export interface UserProfile {
   role: string
   email?: string | null
 }
+
+export interface ProjectSummary {
+  id: string
+  name: string
+  description: string
+  updatedAt: Date | null
+}

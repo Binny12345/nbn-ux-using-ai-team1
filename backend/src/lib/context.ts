@@ -108,6 +108,7 @@ export async function buildProjectBriefing(projectId: string, uid: string): Prom
   return {
     projectName: (projectSnap.data()?.name as string | undefined) ?? 'Untitled project',
     projectDescription: (projectSnap.data()?.description as string | undefined) ?? '',
+    status: (projectSnap.data()?.status as string | undefined) ?? 'active',
     members,
     currentUser: { uid, role: currentRole },
     context,
