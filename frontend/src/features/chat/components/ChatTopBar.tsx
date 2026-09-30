@@ -1,84 +1,158 @@
-// frontend/src/features/chat/components/ChatTopBar.tsx
-
 'use client'
 
-import { useSyncExternalStore } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
-import { Menu, Folder, UserPlus } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Menu as MenuIcon, ListFilter, UserPlus, ChevronDown, LogOut } from 'lucide-react'
+import { useAuth } from '@/hooks/useAuth'
 import type { ProjectSummary, UserProfile } from '../types'
-
-const noopSubscribe = () => () => {}
 
 interface ChatTopBarProps {
   project: ProjectSummary
   currentUser: UserProfile
   fileCount: number
   isPM: boolean
-  onOpenArtifacts: () => void
+  onOpenFiles: () => void
   onOpenInvite: () => void
 }
 
-export function ChatTopBar({ project, currentUser, fileCount, isPM, onOpenArtifacts, onOpenInvite }: ChatTopBarProps) {
-  // false during SSR and hydration, true afterwards — the browser's locale/timezone
-  // differ from the server's, so locale-formatted dates must only render client-side.
-  const isClient = useSyncExternalStore(noopSubscribe, () => true, () => false)
+function initials(name: string) {
+  return name
+    .split(' ')
+    .map((p) => p[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase()
+}
 
-  let lastEdited = 'No edits yet'
-  if (project.updatedAt) {
-    lastEdited = isClient
-      ? `Last edited ${project.updatedAt.toLocaleDateString()} at ${project.updatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-      : ' '
+export function ChatTopBar({ project, currentUser, fileCount, isPM, onOpenFiles, onOpenInvite }: ChatTopBarProps) {
+  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const router = useRouter()
+  const { signOut } = useAuth()
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const handleSignOut = async () => {
+    await signOut()
+    router.replace('/auth/signin')
+    router.refresh()
   }
 
   return (
-    <div className="flex items-center justify-between border-b border-zinc-800 px-6 py-3">
-      <div className="flex items-center gap-5">
+    <header className="flex h-[58px] shrink-0 items-center gap-3 border-b-[1.5px] border-marketing-border bg-marketing-card px-4">
+      <div className="flex shrink-0 items-center gap-2">
         <Link
           href="/projects"
-          aria-label="Back to projects"
-          className="flex items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300"
+          className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-marketing-primary transition-colors hover:bg-marketing-bg"
         >
-          <Menu className="h-4 w-4" />
+          <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+            <path d="M9.5 3L5 7.5l4.5 4.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
           Menu
         </Link>
-        <button
-          onClick={onOpenArtifacts}
-          aria-label="View files"
-          className="relative flex items-center gap-1.5 text-sm text-zinc-300 hover:text-white"
-        >
-          <Folder className="h-4 w-4" />
-          Files
+
+        <div className="h-[22px] w-px bg-marketing-border" />
+
+        <div className="relative">
+          <button
+            onClick={onOpenFiles}
+            className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-marketing-muted transition-colors hover:bg-marketing-bg hover:text-marketing-primary"
+          >
+            <ListFilter className="h-4 w-4" />
+            Files
+          </button>
           {fileCount > 0 && (
-            <span className="ml-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium text-white">
+            <span className="pointer-events-none absolute -right-1 top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-marketing-error px-1 text-[10px] font-bold leading-none text-white shadow-[0_1px_4px_rgba(224,59,59,0.4)]">
               {fileCount}
             </span>
           )}
-        </button>
-      </div>
-
-      <div className="text-center">
-        <p className="text-sm font-semibold text-white">{project.name}</p>
-        <p className="text-xs text-zinc-500">{lastEdited}</p>
-      </div>
-
-      <div className="flex items-center gap-3">
-        <button
-          onClick={onOpenInvite}
-          disabled={!isPM}
-          aria-label="Invite members"
-          title={!isPM ? 'Only the PM can invite new members' : undefined}
-          className="flex items-center gap-1.5 rounded-md px-2 py-1 text-sm text-zinc-300 hover:text-white disabled:cursor-not-allowed disabled:text-zinc-600"
-        >
-          <UserPlus className="h-4 w-4" />
-          Invite
-        </button>
-        <div className="flex items-center gap-2 rounded-md border border-zinc-700 px-3 py-1.5">
-          <div className="text-right">
-            <p className="text-xs font-medium leading-none text-white">{currentUser.name}</p>
-            <p className="text-[11px] text-zinc-500 leading-none mt-0.5">{currentUser.role}</p>
-          </div>
         </div>
       </div>
-    </div>
+
+      <div className="flex min-w-0 flex-1 flex-col items-center justify-center">
+        <span className="truncate text-sm font-semibold leading-tight text-marketing-fg">{project.name}</span>
+        <span className="text-xs leading-tight text-marketing-muted-light">
+          {project.updatedAt
+            ? `Last edited ${project.updatedAt.toLocaleDateString()} at ${project.updatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+            : 'No edits yet'}
+        </span>
+      </div>
+
+      <div className="flex shrink-0 items-center gap-2">
+        <div className="group relative">
+          <button
+            onClick={onOpenInvite}
+            disabled={!isPM}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
+              isPM
+                ? 'text-marketing-primary hover:bg-marketing-bg'
+                : 'cursor-not-allowed bg-marketing-field-bg text-marketing-muted-light'
+            }`}
+          >
+            <UserPlus className="h-[15px] w-[15px]" />
+            Invite
+          </button>
+          {!isPM && (
+            <div className="pointer-events-none absolute right-0 top-full z-[60] mt-1.5 whitespace-nowrap rounded-lg bg-[#1a2b4a] px-3 py-2 text-xs text-white opacity-0 shadow-[0_4px_14px_rgba(0,0,0,0.18)] transition-opacity duration-150 group-hover:opacity-100">
+              Only the PM can invite new members
+              <div className="absolute -top-[5px] right-[18px] h-2.5 w-2.5 rotate-45 rounded-sm bg-[#1a2b4a]" />
+            </div>
+          )}
+        </div>
+
+        <div className="relative" ref={dropdownRef}>
+          <button
+            onClick={() => setDropdownOpen((v) => !v)}
+            className={`flex items-center gap-2 rounded-lg border-[1.5px] border-marketing-border px-3 py-2 transition-colors ${
+              dropdownOpen ? 'bg-marketing-bg' : 'hover:bg-marketing-bg'
+            }`}
+          >
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-marketing-primary text-xs font-bold text-white">
+              {initials(currentUser.name)}
+            </div>
+            <div className="flex flex-col items-start leading-none">
+              <span className="text-xs font-semibold text-marketing-fg">{currentUser.name}</span>
+              <span className="text-xs text-marketing-muted-light">
+                {currentUser.role} · {project.name}
+              </span>
+            </div>
+            <ChevronDown className={`h-3 w-3 text-marketing-muted-light transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          {dropdownOpen && (
+            <div className="absolute right-0 top-full z-50 mt-1 min-w-[180px] overflow-hidden rounded-xl border-[1.5px] border-marketing-border bg-marketing-card shadow-[0_8px_24px_rgba(26,108,255,0.12)]">
+              <div className="border-b border-marketing-border px-4 py-3">
+                <div className="text-sm font-semibold text-marketing-fg">{currentUser.name}</div>
+                {currentUser.email && (
+                  <div className="mt-0.5 text-xs text-marketing-muted-light">{currentUser.email}</div>
+                )}
+                <div className="mt-2 flex items-center gap-1.5">
+                  <span className="rounded-full bg-marketing-field-bg px-2 py-0.5 text-xs font-medium text-marketing-primary">
+                    {currentUser.role}
+                  </span>
+                  <span className="text-xs text-marketing-muted-light">{project.name}</span>
+                </div>
+              </div>
+              <button
+                onClick={handleSignOut}
+                className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm text-marketing-error transition-colors hover:bg-marketing-danger-bg"
+              >
+                <LogOut className="h-[15px] w-[15px]" />
+                Log out
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </header>
   )
 }

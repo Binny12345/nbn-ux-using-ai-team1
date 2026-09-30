@@ -1,23 +1,36 @@
 import type { ChatMessage } from '../types'
 
-export function MessageBubble({ message }: { message: ChatMessage }) {
+function initials(name: string) {
+  return name.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase()
+}
+
+export function MessageBubble({ message, currentUserName }: { message: ChatMessage; currentUserName: string }) {
   const isUser = message.sender === 'user'
 
   return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+    <div className={`flex gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
       <div
-        className={`max-w-[75%] rounded-2xl px-4 py-2 text-sm ${
+        className={`flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full text-xs font-bold ${
           isUser
-            ? 'bg-zinc-900 text-white rounded-br-sm'
-            : 'bg-zinc-100 text-zinc-900 rounded-bl-sm'
+            ? 'bg-marketing-field-bg text-marketing-primary'
+            : 'bg-gradient-to-br from-marketing-primary to-marketing-primary-dark text-white shadow-[0_2px_8px_rgba(26,108,255,0.3)]'
         }`}
       >
-        <p>{message.content}</p>
-        <p className={`mt-1 text-[10px] ${isUser ? 'text-zinc-300' : 'text-zinc-400'}`}>
-          {message.failed
-            ? 'Not sent'
-            : message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-        </p>
+        {isUser ? initials(currentUserName) : 'AI'}
+      </div>
+      <div className={`flex max-w-[75%] flex-col gap-1 ${isUser ? 'items-end' : 'items-start'}`}>
+        <div
+          className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+            isUser
+              ? 'rounded-br-[4px] bg-marketing-primary text-white'
+              : 'rounded-bl-[4px] border-[1.5px] border-marketing-border bg-marketing-card text-marketing-fg shadow-[0_1px_6px_rgba(26,108,255,0.06)]'
+          }`}
+        >
+          {message.content}
+        </div>
+        <span className="text-xs text-marketing-muted-light">
+          {message.timestamp.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+        </span>
       </div>
     </div>
   )
