@@ -9,6 +9,7 @@ import { ChatInput } from './ChatInput'
 import { FilesSidebar } from './FilesSidebar'
 import { InviteModal } from './InviteModal'
 import { useChat } from '../hooks/useChat'
+import { EditDescriptionModal } from './EditDescriptionModal'
 import type { Artifact, ContextEntry, ProjectSummary, UserProfile } from '../types'
 
 interface ChatSessionUIProps {
@@ -24,6 +25,7 @@ export function ChatSessionUI({ project, currentUser, contextEntries, artifacts 
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showInvite, setShowInvite] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const [showEditDescription, setShowEditDescription] = useState(false)  
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
@@ -44,6 +46,7 @@ export function ChatSessionUI({ project, currentUser, contextEntries, artifacts 
         isPM={currentUser.role === 'PM'}
         onOpenFiles={() => setSidebarOpen(true)}
         onOpenInvite={() => setShowInvite(true)}
+        onEditDescription={() => setShowEditDescription(true)}
       />
 
       <div className="flex flex-1 flex-col overflow-hidden">
@@ -79,6 +82,14 @@ export function ChatSessionUI({ project, currentUser, contextEntries, artifacts 
 
       <FilesSidebar open={sidebarOpen} artifacts={artifacts} onClose={() => setSidebarOpen(false)} />
       {showInvite && <InviteModal projectId={project.id} onClose={() => setShowInvite(false)} />}
+              {showEditDescription && (
+        <EditDescriptionModal
+          projectId={project.id}
+          currentDescription={project.description}
+          onClose={() => setShowEditDescription(false)}
+          onSaved={() => router.refresh()}
+        />
+      )}
     </div>
   )
 }

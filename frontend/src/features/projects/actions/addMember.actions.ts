@@ -25,6 +25,9 @@ export async function addMember(input: z.infer<typeof addMemberSchema>) {
   if (projectDoc.data()?.createdBy !== session.uid) {
     return { success: false, error: 'Only the project manager can add members' }
   }
+  if (projectDoc.data()?.status === 'archived') {
+  return { success: false, error: 'This project is archived' }
+  }
 
   // Look up the user by email — confirms they actually exist before adding them
   const userQuery = await adminDb

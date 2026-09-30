@@ -31,6 +31,7 @@ export default async function ProjectPage({
       project={{
         id: projectId,
         name: projectData?.name ?? 'Untitled project',
+        description: projectData?.description ?? '',
         updatedAt: projectData?.updatedAt?.toDate?.() ?? null,
       }}
       currentUser={{ name: displayName, role: role!, email: session.email ?? null }}

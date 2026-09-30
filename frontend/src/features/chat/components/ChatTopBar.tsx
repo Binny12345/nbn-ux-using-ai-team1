@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Menu as MenuIcon, ListFilter, UserPlus, ChevronDown, LogOut } from 'lucide-react'
+import { Menu as MenuIcon, ListFilter, UserPlus, ChevronDown, LogOut, Pencil } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import type { ProjectSummary, UserProfile } from '../types'
 
@@ -14,6 +14,7 @@ interface ChatTopBarProps {
   isPM: boolean
   onOpenFiles: () => void
   onOpenInvite: () => void
+  onEditDescription: () => void
 }
 
 function initials(name: string) {
@@ -25,7 +26,7 @@ function initials(name: string) {
     .toUpperCase()
 }
 
-export function ChatTopBar({ project, currentUser, fileCount, isPM, onOpenFiles, onOpenInvite }: ChatTopBarProps) {
+export function ChatTopBar({ project, currentUser, fileCount, isPM, onOpenFiles, onOpenInvite, onEditDescription }: ChatTopBarProps) {
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
@@ -79,10 +80,21 @@ export function ChatTopBar({ project, currentUser, fileCount, isPM, onOpenFiles,
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col items-center justify-center">
-        <span className="truncate text-sm font-semibold leading-tight text-marketing-fg">{project.name}</span>
+        <div className="flex items-center gap-1.5">
+          <span className="truncate text-sm font-semibold leading-tight text-marketing-fg">{project.name}</span>
+          {isPM && (
+            <button
+              onClick={onEditDescription}
+              aria-label="Edit project description"
+              className="rounded p-0.5 text-marketing-muted-light transition-colors hover:bg-marketing-bg hover:text-marketing-primary"
+            >
+              <Pencil className="h-3 w-3" />
+            </button>
+          )}
+        </div>
         <span className="text-xs leading-tight text-marketing-muted-light">
           {project.updatedAt
-            ? `Last edited ${project.updatedAt.toLocaleDateString()} at ${project.updatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+            ? `Last edited ${project.updatedAt.toLocaleDateString('en-AU')} at ${project.updatedAt.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}`
             : 'No edits yet'}
         </span>
       </div>

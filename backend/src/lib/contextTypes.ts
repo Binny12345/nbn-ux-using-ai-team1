@@ -24,6 +24,7 @@ export interface ProjectMemberBrief {
 export interface ProjectBriefing {
   projectName: string
   projectDescription: string
+  status: string
   members: ProjectMemberBrief[]
   currentUser: { uid: string; role: string }
   context: ContextEntry[]

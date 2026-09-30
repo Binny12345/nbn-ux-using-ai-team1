@@ -29,7 +29,7 @@ export function MessageBubble({ message, currentUserName }: { message: ChatMessa
           {message.content}
         </div>
         <span className="text-xs text-marketing-muted-light">
-          {message.timestamp.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+          {message.timestamp.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' })}
         </span>
       </div>
     </div>
