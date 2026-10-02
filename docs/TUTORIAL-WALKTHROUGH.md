@@ -620,25 +620,17 @@ console (Authentication → Users).
 ## Appendix — running the backend Express app locally (no emulator, no Functions runner)
 
 `pnpm --filter backend run dev` only type-checks and watches — it doesn't start an HTTP server
-(the Cloud Function entry in `src/index.ts` needs the Functions runtime to invoke it). To
-exercise `backend/` routes locally against real Firestore, build it and start `createApp()` on
-a plain port yourself:
+(the Cloud Function entry in `src/index.ts` needs the Functions runtime to invoke it, and the
+Vercel entry in `api/index.ts` needs Vercel's runtime). To exercise `backend/` routes locally
+against real Firestore, build it and run the `serve:local` script, from anywhere in the repo:
 
 ```bash
-pnpm --filter backend build   # compiles src/ -> lib/
-
-node -e "
-const fs = require('fs');
-const env = Object.fromEntries(
-  fs.readFileSync('backend/.env', 'utf8')
-    .split('\n').filter(l => l.includes('=') && !l.startsWith('#'))
-    .map(l => { const i = l.indexOf('='); return [l.slice(0, i), l.slice(i + 1)] })
-);
-Object.assign(process.env, env);
-const { createApp } = require('./backend/lib/app');
-createApp().listen(5099, () => console.log('backend test server on :5099'));
-"
+pnpm --filter backend build       # compiles src/ -> lib/
+pnpm --filter backend run serve:local   # starts createApp() on :5099, reading backend/.env
 ```
+
+(`backend/scripts/dev-server.js` is the script behind this — resolves `backend/.env` relative to
+itself, so it works whether you run it from the repo root or from inside `backend/`.)
 
 Then hit it with a real ID token (from the sign-up REST call above):
 

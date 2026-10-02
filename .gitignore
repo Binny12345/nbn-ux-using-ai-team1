@@ -57,3 +57,5 @@ docs/BOILERPLATE-BENCHMARK.md
 
 # Internal QA notes — not for the public repo
 docs/REPLICATION-LOG.md
+.vercel
+.env*

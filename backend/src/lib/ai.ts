@@ -23,8 +23,10 @@ export const MODELS = [
   'qwen/qwen3.8-27b:free',
   'nvidia/nemotron-3.5-lightning:free',
   'google/gemma-4-31b-it:free',
-  'openrouter/free',
+  'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
 ]
+// Never add 'openrouter/free' here: it routes to a random free model, including
+// content-safety classifiers ("User Safety: safe") and code/finance-tuned ones.
 const MAX_TOKENS = 1024
 const REQUEST_TIMEOUT_MS = 15_000
 // Vercel functions are capped at 60s and one chat turn makes two calls (reply + extraction).

@@ -14,14 +14,6 @@ export interface ContextEntry {
   contributorName: string | null
 }
 
-export interface Artifact {
-  id: string
-  title: string
-  type: string
-  filePath: string
-  createdAt: Date
-}
-
 export interface ProjectSummary {
   id: string
   name: string

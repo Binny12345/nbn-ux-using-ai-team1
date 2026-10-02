@@ -4,8 +4,10 @@ import { useCallback, useState } from 'react'
 import { getClientAuth } from '@/lib/firebase/client'
 import type { ChatMessage } from '../types'
 
-// Base URL of the separately deployed Express backend — no trailing slash.
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? ''
+// Base URL of the separately deployed Express backend. A value without a scheme would be
+// treated by the browser as a path relative to the current page, so default it to https.
+const rawApiUrl = (process.env.NEXT_PUBLIC_API_URL ?? '').trim().replace(/\/+$/, '')
+const API_BASE = rawApiUrl && !/^https?:\/\//i.test(rawApiUrl) ? `https://${rawApiUrl}` : rawApiUrl
 
 interface ChatResponse {
   reply: string

@@ -9,19 +9,19 @@ import { ChatInput } from './ChatInput'
 import { ArtifactsPanel } from './ArtifactsPanel'
 import { InviteModal } from './InviteModal'
 import { useChat } from '../hooks/useChat'
-import type { Artifact, ContextEntry, ProjectSummary, UserProfile } from '../types'
+import type { ContextEntry, ProjectSummary, UserProfile } from '../types'
 
 interface ChatSessionUIProps {
   project: ProjectSummary
   currentUser: UserProfile
   contextEntries: ContextEntry[]
-  artifacts: Artifact[]
 }
 
-export function ChatSessionUI({ project, currentUser, contextEntries, artifacts }: ChatSessionUIProps) {
+export function ChatSessionUI({ project, currentUser, contextEntries }: ChatSessionUIProps) {
   const router = useRouter()
   const { messages, isSending, error, send } = useChat(project.id)
   const [showArtifacts, setShowArtifacts] = useState(false)
+  const [fileCount, setFileCount] = useState(0)
   const [showInvite, setShowInvite] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -40,7 +40,7 @@ export function ChatSessionUI({ project, currentUser, contextEntries, artifacts 
       <ChatTopBar
         project={project}
         currentUser={currentUser}
-        fileCount={artifacts.length}
+        fileCount={fileCount}
         isPM={currentUser.role === 'PM'}
         onOpenArtifacts={() => setShowArtifacts(true)}
         onOpenInvite={() => setShowInvite(true)}
@@ -69,7 +69,13 @@ export function ChatSessionUI({ project, currentUser, contextEntries, artifacts 
 
       <ChatInput onSend={(content) => void handleSend(content)} disabled={isSending} />
 
-      {showArtifacts && <ArtifactsPanel artifacts={artifacts} onClose={() => setShowArtifacts(false)} />}
+      {showArtifacts && (
+        <ArtifactsPanel
+          projectId={project.id}
+          onClose={() => setShowArtifacts(false)}
+          onArtifactsChange={setFileCount}
+        />
+      )}
       {showInvite && <InviteModal projectId={project.id} onClose={() => setShowInvite(false)} />}
     </div>
   )

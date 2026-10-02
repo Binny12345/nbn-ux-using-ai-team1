@@ -89,6 +89,7 @@ const backendLines = [
   `CORS_ORIGIN=${get('CORS_ORIGIN')}`,
   `PORT=${get('PORT')}`,
   `OPENROUTER_API_KEY=${get('OPENROUTER_API_KEY')}`,
+  `BLOB_READ_WRITE_TOKEN=${get('BLOB_READ_WRITE_TOKEN')}`
 ]
 
 fs.writeFileSync(path.join(root, 'frontend', '.env.local'), frontendLines.join('\n') + '\n')
