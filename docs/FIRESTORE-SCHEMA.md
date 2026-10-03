@@ -93,4 +93,24 @@ This subcollection is the source of truth for membership and role. Both the fron
 **Design:** append-only — one document per entry, never merged or overwritten, so concurrent writers cannot clobber each other and every entry keeps a single author (attribution).
 **Note:** `_schemaVersion` is not set on this collection yet.
 
+### `artifacts` subcollection
+
+**Path:** `/projects/{projectId}/artifacts/{artifactId}` (auto-generated ID)
+**Access:** Written only by the backend (`POST` / `DELETE /api/projects/:projectId/artifacts`) through the Admin SDK. Project members may read these documents with the client SDK; the security rules deny all client writes. The file bytes live in Vercel Blob (private store) — this document holds the metadata.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `fileName` | `string` | Yes | Original file name as uploaded. Used as the download name. Not unique — the blob path gets a random suffix instead |
+| `contentType` | `string` | Yes | MIME type reported at upload |
+| `size` | `number` | Yes | File size in bytes |
+| `blobUrl` | `string` | Yes | URL of the private blob. Never returned by the list API; fetching it needs the server's blob token |
+| `blobPathname` | `string` | Yes | Blob pathname, `projects/{projectId}/{fileName}-{randomSuffix}` |
+| `uploadedBy` | `string` | Yes | UID of the uploader. Set by the server from the verified token — never from the request |
+| `role` | `string` | Yes | The uploader's project role at upload time (copied from their `members` document) |
+| `createdAt` | `Timestamp` | Yes | Server timestamp |
+
+**Rules:** members read, no client writes (`firebase/firestore.rules`, helper `isProjectMember`). A member reading a document with the client SDK can see `blobUrl` and `blobPathname`; the blob itself stays private, so the URL alone grants no access.
+**Deletion:** the delete route removes both the blob and this document (hard delete), unlike the soft-delete convention elsewhere.
+**Note:** `_schemaVersion` is not set on this collection yet.
+
 <!-- Add new collection schemas below using the /firebase-collection skill -->
