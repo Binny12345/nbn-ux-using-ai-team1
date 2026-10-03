@@ -94,7 +94,7 @@ async function complete(
 // Render the full project briefing into a system prompt: who the AI is
 // talking to, who else is on the project, what the project is, and the
 // shared context contributed so far — all known before the user says anything.
-function formatBriefing(briefing: ProjectBriefing): string {
+function formatBriefing(briefing: ProjectBriefing, fileContents: { fileName: string; content: string }[] = []): string {
   const memberList = briefing.members
     .map((m) => {
       const name = m.displayName ?? 'Unnamed user'
@@ -111,20 +111,40 @@ function formatBriefing(briefing: ProjectBriefing): string {
           .join('\n\n')
       : 'No shared context has been contributed yet.'
 
+  const artifactList =
+    briefing.artifacts.length > 0
+      ? briefing.artifacts
+          .map((a) => `- ${a.fileName} (${a.contentType}, ${a.source === 'ai' ? 'AI-generated' : 'uploaded'})`)
+          .join('\n')
+      : 'No files have been added to this project yet.'
+
+  const fileContentText =
+    fileContents.length > 0
+      ? fileContents
+          .map((f) => `--- ${f.fileName} ---\n${f.content}`)
+          .join('\n\n')
+      : ''
+
   return [
     `You are an AI assistant embedded in a shared collaboration workspace for the project "${briefing.projectName}".`,
     briefing.projectDescription ? `Project description: ${briefing.projectDescription}` : '',
     "Your job is to help this project's team members work with and build on the shared context below — answering questions, drafting, summarizing, and coordinating. You are a tool augmenting their work, not a team member with your own identity, opinions, or name.",
     `Project members:\n${memberList}`,
     `You are currently talking to: ${briefing.currentUser.role} (uid ${briefing.currentUser.uid}). If they ask who they are, answer directly using this information, do not say it is unknown.`,
+    `Files in this project:\n${artifactList}\nYou know these files exist, but you can only see the content of a markdown file when the user references it with /file(filename) in their message. If they ask about a file's content without using that syntax, tell them to reference it that way, e.g. /file(${briefing.artifacts[0]?.fileName ?? 'example.md'}).`,
+    fileContentText ? `Content of the file(s) referenced in this message:\n\n${fileContentText}` : '',
     `Shared context contributed so far, attributed by role and user id. Do not assume one person's self-described facts (like a name) apply to anyone else, including the current speaker, unless the context entry is explicitly credited to them:\n\n${contextText}`,
   ]
     .filter(Boolean)
     .join('\n\n')
 }
 
-export async function generateReply(briefing: ProjectBriefing, message: string): Promise<string> {
-  const systemPrompt = formatBriefing(briefing)
+export async function generateReply(
+  briefing: ProjectBriefing,
+  message: string,
+  fileContents: { fileName: string; content: string }[] = []
+): Promise<string> {
+  const systemPrompt = formatBriefing(briefing, fileContents)
   try {
     const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
       { role: 'system', content: systemPrompt },

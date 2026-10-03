@@ -1,3 +1,5 @@
+import type { ArtifactBrief } from './artifacts'
+
 export type ContextStatus = 'Active' | 'Outdated'
 
 export interface ContextEntry {
@@ -28,4 +30,5 @@ export interface ProjectBriefing {
   members: ProjectMemberBrief[]
   currentUser: { uid: string; role: string }
   context: ContextEntry[]
+  artifacts: ArtifactBrief[]
 }

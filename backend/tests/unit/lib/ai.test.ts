@@ -27,9 +27,11 @@ const apiError = (status?: number) => new OpenAI.APIError(status, undefined, und
 const emptyBriefing: ProjectBriefing = {
   projectName: 'Test Project',
   projectDescription: '',
+  status: 'active',
   members: [],
   currentUser: { uid: 'u1', role: 'BA' },
   context: [],
+  artifacts: [],
 }
 
 describe('ai model fallback', () => {

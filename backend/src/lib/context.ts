@@ -1,6 +1,7 @@
 import { adminDb } from './firebase'
 import { HttpError } from './errors'
 import type { ContextEntry, ContextStatus, ProjectBriefing } from './contextTypes'
+import { listProjectArtifacts } from './artifacts'
 
 // One context document as stored under projects/{id}/context/{entryId}.
 interface StoredEntry {
@@ -105,6 +106,8 @@ export async function buildProjectBriefing(projectId: string, uid: string): Prom
     })
   })
 
+  const artifacts = await listProjectArtifacts(projectId)
+
   return {
     projectName: (projectSnap.data()?.name as string | undefined) ?? 'Untitled project',
     projectDescription: (projectSnap.data()?.description as string | undefined) ?? '',
@@ -112,5 +115,6 @@ export async function buildProjectBriefing(projectId: string, uid: string): Prom
     members,
     currentUser: { uid, role: currentRole },
     context,
+    artifacts,
   }
 }
