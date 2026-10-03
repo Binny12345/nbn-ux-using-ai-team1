@@ -1,4 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import OpenAI from 'openai'
+import { generateReply, generateDocument, extractEntries, MODELS } from '../../../src/lib/ai';
+import type { ProjectBriefing } from '../../../src/lib/contextTypes'
+import type { ContextEntry } from '../../../src/lib/contextTypes'
 
 const create = vi.hoisted(() => vi.fn())
 
@@ -16,11 +20,6 @@ vi.mock('openai', () => {
   }
   return { default: OpenAI }
 })
-
-import OpenAI from 'openai'
-import { generateReply, generateDocument, extractEntries, MODELS } from '../../../src/lib/ai';
-import type { ProjectBriefing } from '../../../src/lib/contextTypes'
-import type { ContextEntry } from '../../../src/lib/contextTypes'
 
 const reply = (content: string | null) => ({ choices: [{ message: { content } }] })
 const apiError = (status?: number) => new OpenAI.APIError(status, undefined, undefined, undefined)

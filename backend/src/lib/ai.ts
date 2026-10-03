@@ -1,6 +1,6 @@
 import OpenAI from 'openai'
 import { HttpError } from './errors'
-import type { ProjectBriefing } from './contextTypes'
+import type { ProjectBriefing, ContextEntry } from './contextTypes'
 
 let client: OpenAI | null = null
 
@@ -47,6 +47,13 @@ function shouldFallBack(err: unknown): boolean {
   if (!(err instanceof OpenAI.APIError)) return false
   const status = err.status
   return status === undefined || status === 404 || status === 408 || status === 429 || status >= 500
+}
+
+function formatContext(context: ContextEntry[]): string {
+  if (context.length === 0) return ''
+  return context
+    .map((e) => `${e.role} (${e.contributedBy}) — ${e.type}:\n${e.content}`)
+    .join('\n\n')
 }
 
 async function complete(
