@@ -6,6 +6,8 @@ import { HttpError } from '../lib/errors'
 import { buildProjectBriefing } from '../lib/context'
 import { generateReply, extractEntries } from '../lib/ai'
 import { persistContext } from '../lib/persistContext'
+import { extractFileReferences, fetchArtifactContentByName } from '../lib/artifacts'
+
 
 const router: ExpressRouter = Router()
 
@@ -38,6 +40,15 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
     //Checks if project is archived
     if (briefing.status === 'archived') {
       return next(HttpError.badRequest('This project is archived and no longer accepts new messages'))
+    }
+    
+    // On-demand file content: only fetched when the user explicitly
+    // references a file with /file(name), never on every turn.
+    const referencedNames = extractFileReferences(message)
+    const fileContents: { fileName: string; content: string }[] = []
+    for (const name of referencedNames) {
+      const content = await fetchArtifactContentByName(projectId, name)
+      if (content !== null) fileContents.push({ fileName: name, content })
     }
 
     // Generate the reply from that briefing.

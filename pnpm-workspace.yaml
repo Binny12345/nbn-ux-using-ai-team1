@@ -22,6 +22,7 @@ overrides:
   # here — see README.md § Security for the manual fix.
   # js-yaml: '^4.3.1'
   # nanoid: '^3.3.17'
+  zod: 3.25.76
 
 allowBuilds:
   '@firebase/util': true
