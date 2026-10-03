@@ -33,6 +33,13 @@ service cloud.firestore {
       return resource == null || !('deletedAt' in resource.data) || resource.data.deletedAt == null;
     }
 
+    // True when the caller has a document in projects/{projectId}/members.
+    // Membership and role live in that subcollection, not on the project document.
+    function isProjectMember(projectId) {
+      return isAuthenticated()
+        && exists(/databases/$(database)/documents/projects/$(projectId)/members/$(request.auth.uid));
+    }
+
     // ── Collections ────────────────────────────────────────────────────────
 
     // users/{userId}
@@ -52,6 +59,18 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['uid', 'email', 'displayName', 'photoURL', 'createdAt']);
         
       allow delete: if false; // soft-delete only — set deletedAt field instead
+    }
+
+    // projects/{projectId}/artifacts/{artifactId}
+    // Metadata for files stored in Vercel Blob. Project members can read; every
+    // write goes through the backend routes (Admin SDK, which bypasses rules),
+    // so clients never create, update or delete.
+    // The backend writes exactly: fileName, contentType, size, blobUrl,
+    // blobPathname, uploadedBy, role, source, createdAt. If client writes are
+    // ever enabled, the hasAll/hasOnly lists must match that set exactly.
+    match /projects/{projectId}/artifacts/{artifactId} {
+      allow read: if isProjectMember(projectId);
+      allow write: if false;
     }
 
     // Add new collection rules above this comment using the /firebase-collection skill.

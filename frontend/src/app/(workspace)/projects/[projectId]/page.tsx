@@ -5,11 +5,7 @@ import { adminDb } from '@/lib/firebase/admin'
 import { ChatSessionUI } from '@/features/chat/components/ChatSessionUI'
 import { getProjectContext } from '@/features/chat/lib/context'
 
-export default async function ProjectPage({
-  params,
-}: {
-  params: Promise<{ projectId: string }>
-}) {
+export default async function ProjectPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params
   const session = await requireAuth()
   const role = await getUserRoleForProject(projectId, session.uid)
@@ -36,7 +32,6 @@ export default async function ProjectPage({
       }}
       currentUser={{ name: displayName, role: role!, email: session.email ?? null }}
       contextEntries={contextEntries}
-      artifacts={[]} // wire up once artifacts subcollection is read
     />
   )
 }

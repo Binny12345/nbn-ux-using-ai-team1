@@ -1,5 +1,6 @@
 import { Router, type Router as ExpressRouter } from 'express'
 import { chatRouter } from './chat'
+import { artifactsRouter } from './artifacts'
 
 const router: ExpressRouter = Router()
 
@@ -9,5 +10,6 @@ const router: ExpressRouter = Router()
 //   router.use('/users', usersRouter)
 
 router.use('/chat', chatRouter)
+router.use('/projects', artifactsRouter)
 
 export { router as apiRouter }

@@ -18,8 +18,9 @@ vi.mock('openai', () => {
 })
 
 import OpenAI from 'openai'
-import { generateReply, extractEntries, MODELS } from '../../../src/lib/ai'
+import { generateReply, generateDocument, extractEntries, MODELS } from '../../../src/lib/ai';
 import type { ProjectBriefing } from '../../../src/lib/contextTypes'
+import type { ContextEntry } from '../../../src/lib/contextTypes'
 
 const reply = (content: string | null) => ({ choices: [{ message: { content } }] })
 const apiError = (status?: number) => new OpenAI.APIError(status, undefined, undefined, undefined)
@@ -80,5 +81,73 @@ describe('ai model fallback', () => {
   it('returns no entries when extraction fails on every model', async () => {
     create.mockRejectedValue(apiError(429))
     await expect(extractEntries('u', 'a')).resolves.toEqual([])
+  })
+})
+
+describe('generateDocument', () => {
+  const entry: ContextEntry = {
+    content: 'Login is email/password only',
+    type: 'decision',
+    contributedBy: 'u1',
+    role: 'BA',
+    sourceChatId: 's1',
+    status: 'Active',
+  }
+
+  beforeEach(() => {
+    process.env.OPENROUTER_API_KEY = 'test-key'
+    create.mockReset()
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+  })
+
+  it('sends document instructions, the project context and the prompt, with a larger token limit', async () => {
+    create.mockResolvedValueOnce(reply('# Doc\n\nbody'))
+
+    await generateDocument([entry], 'write the login requirements')
+
+    const request = create.mock.calls[0]?.[0]
+    expect(request.max_tokens).toBeGreaterThan(1024)
+    expect(request.messages[0].role).toBe('system')
+    expect(request.messages[0].content).toContain('Markdown')
+    expect(request.messages[0].content).toContain('Login is email/password only')
+    expect(request.messages[1]).toEqual({
+      role: 'user',
+      content: 'write the login requirements',
+    })
+  })
+
+  it('works with no project context yet', async () => {
+    create.mockResolvedValueOnce(reply('# Doc'))
+    await expect(generateDocument([], 'anything')).resolves.toBe('# Doc')
+    expect(create.mock.calls[0]?.[0].messages[0].content).not.toContain('Project context:')
+  })
+
+  it('unwraps a document the model wrapped in a code fence, leaving inner fences alone', async () => {
+    const inner = '# Doc\n\n```js\nconst a = 1\n```\n\nend'
+    create.mockResolvedValueOnce(reply('```markdown\n' + inner + '\n```'))
+    await expect(generateDocument([], 'x')).resolves.toBe(inner)
+  })
+
+  it('does not strip fences from a document that merely contains a code block', async () => {
+    const doc = '# Doc\n\n```js\nconst a = 1\n```'
+    create.mockResolvedValueOnce(reply(doc))
+    await expect(generateDocument([], 'x')).resolves.toBe(doc)
+  })
+
+  it('falls back to the next model on a rate limit', async () => {
+    create.mockRejectedValueOnce(apiError(429)).mockResolvedValueOnce(reply('# Doc'))
+    await expect(generateDocument([], 'x')).resolves.toBe('# Doc')
+    expect(create).toHaveBeenCalledTimes(2)
+  })
+
+  it('throws 502 once every model has failed', async () => {
+    create.mockRejectedValue(apiError(429))
+    await expect(generateDocument([], 'x')).rejects.toMatchObject({ status: 502 })
+  })
+
+  it('throws 502 when every model returns an empty document', async () => {
+    create.mockResolvedValue(reply('   '))
+    await expect(generateDocument([], 'x')).rejects.toMatchObject({ status: 502 })
   })
 })
