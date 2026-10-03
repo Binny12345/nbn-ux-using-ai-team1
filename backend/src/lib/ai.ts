@@ -32,6 +32,16 @@ const REQUEST_TIMEOUT_MS = 15_000
 // Vercel functions are capped at 60s and one chat turn makes two calls (reply + extraction).
 const REPLY_BUDGET_MS = 35_000
 const EXTRACT_BUDGET_MS = 20_000
+// Documents are far longer than chat replies. The /generate route also needs a few
+// seconds for the blob upload and Firestore write, so stay well under the 60s cap.
+const DOCUMENT_MAX_TOKENS = 2048
+const DOCUMENT_REQUEST_TIMEOUT_MS = 25_000
+const DOCUMENT_BUDGET_MS = 50_000
+
+interface CompleteOptions {
+  maxTokens?: number
+  requestTimeoutMs?: number
+}
 
 function shouldFallBack(err: unknown): boolean {
   if (!(err instanceof OpenAI.APIError)) return false
@@ -41,7 +51,8 @@ function shouldFallBack(err: unknown): boolean {
 
 async function complete(
   messages: OpenAI.Chat.ChatCompletionMessageParam[],
-  budgetMs: number
+  budgetMs: number,
+  { maxTokens = MAX_TOKENS, requestTimeoutMs = REQUEST_TIMEOUT_MS }: CompleteOptions = {}
 ): Promise<string> {
   const start = Date.now()
   let lastErr: unknown = null
@@ -51,8 +62,8 @@ async function complete(
     if (remaining <= 0) break
     try {
       const completion = await getClient().chat.completions.create(
-        { model, max_tokens: MAX_TOKENS, messages },
-        { timeout: Math.min(REQUEST_TIMEOUT_MS, remaining) }
+        { model, max_tokens: maxTokens, messages },
+        { timeout: Math.min(requestTimeoutMs, remaining) }
       )
       // OpenRouter can answer 200 with an error body and no `choices` when the upstream fails mid-request.
       const content = completion.choices?.[0]?.message?.content ?? ''
@@ -94,6 +105,51 @@ export async function generateReply(context: ContextEntry[], message: string): P
   } catch (err) {
     if (err instanceof HttpError) throw err
     console.error('generateReply: OpenRouter call failed:', err)
+    throw new HttpError(502, 'Bad Gateway', 'The AI service failed to respond')
+  }
+}
+
+// Models sometimes wrap a whole document in a ```markdown fence despite being told not to.
+// Only strips when the fence encloses the entire text, so fenced code inside is untouched.
+function stripDocumentFence(raw: string): string {
+  const text = raw.trim()
+  const match = /^```[a-z]*[ \t]*\r?\n([\s\S]*?)\r?\n```$/i.exec(text)
+  return match?.[1] !== undefined ? match[1].trim() : text
+}
+
+const DOCUMENT_SYSTEM_PROMPT =
+  'You write standalone project documents in Markdown for a shared team workspace. ' +
+  'Reply with ONLY the document itself: no preamble, no closing remarks, and do not wrap ' +
+  'it in a code fence. Start with a single "# Title" heading, then use clear sections. ' +
+  'Use the project context below where it is relevant, and do not invent facts it contradicts.'
+
+// Generates a new Markdown document from the project context and a free-text prompt.
+// Separate from generateReply: that one sends the context with no instructions and
+// caps output at chat-reply length.
+export async function generateDocument(context: ContextEntry[], prompt: string): Promise<string> {
+  const contextText = formatContext(context)
+  const system =
+    contextText.length > 0
+      ? `${DOCUMENT_SYSTEM_PROMPT}\n\nProject context:\n${contextText}`
+      : DOCUMENT_SYSTEM_PROMPT
+
+  try {
+    const raw = await complete(
+      [
+        { role: 'system', content: system },
+        { role: 'user', content: prompt },
+      ],
+      DOCUMENT_BUDGET_MS,
+      { maxTokens: DOCUMENT_MAX_TOKENS, requestTimeoutMs: DOCUMENT_REQUEST_TIMEOUT_MS }
+    )
+    const markdown = stripDocumentFence(raw)
+    if (markdown.length === 0) {
+      throw new HttpError(502, 'Bad Gateway', 'The AI service returned an empty document')
+    }
+    return markdown
+  } catch (err) {
+    if (err instanceof HttpError) throw err
+    console.error('generateDocument: OpenRouter call failed:', err)
     throw new HttpError(502, 'Bad Gateway', 'The AI service failed to respond')
   }
 }

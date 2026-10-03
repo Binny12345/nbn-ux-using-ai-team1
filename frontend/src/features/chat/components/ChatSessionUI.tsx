@@ -19,7 +19,7 @@ interface ChatSessionUIProps {
 
 export function ChatSessionUI({ project, currentUser, contextEntries }: ChatSessionUIProps) {
   const router = useRouter()
-  const { messages, isSending, error, send } = useChat(project.id)
+  const { messages, isSending, isGenerating, error, send } = useChat(project.id)
   const [showArtifacts, setShowArtifacts] = useState(false)
   const [fileCount, setFileCount] = useState(0)
   const [showInvite, setShowInvite] = useState(false)
@@ -55,7 +55,7 @@ export function ChatSessionUI({ project, currentUser, contextEntries }: ChatSess
           {isSending && (
             <div className="flex justify-start">
               <div className="rounded-2xl rounded-bl-sm bg-zinc-100 px-4 py-2 text-sm text-zinc-500">
-                Thinking…
+                {isGenerating ? 'Generating document…' : 'Thinking…'}
               </div>
             </div>
           )}

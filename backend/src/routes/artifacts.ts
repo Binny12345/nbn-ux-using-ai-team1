@@ -1,10 +1,13 @@
 import { Router, type Router as ExpressRouter } from 'express'
 import type { Request, Response, NextFunction } from 'express'
 import multer from 'multer'
+import { z } from 'zod'
 import { put, del } from '@vercel/blob'
 import type { AuthenticatedRequest } from '../middleware/auth'
 import { HttpError } from '../lib/errors'
 import { adminDb, FieldValue } from '../lib/firebase'
+import { buildProjectContext } from '../lib/context'
+import { generateDocument } from '../lib/ai'
 
 const router: ExpressRouter = Router()
 
@@ -88,12 +91,128 @@ router.post(
         blobPathname: blob.pathname,
         uploadedBy: user.uid, // attribution: who — from the verified session
         role, // their project role at upload time
+        source: 'upload', // how it was produced (the generate route writes 'ai')
         createdAt: FieldValue.serverTimestamp(),
       }
 
       await artifactRef.set(record)
 
       res.status(201).json({ id: artifactRef.id, ...record, createdAt: undefined })
+    } catch (err) {
+      next(err)
+    }
+  }
+)
+
+// ── Generate (AI) ─────────────────────────────────────────────────────────
+// POST /api/projects/:projectId/artifacts/generate   body: { prompt }
+// Creates a new Markdown file from the project context + the prompt. The "file" is
+// produced server-side, so this is the upload route minus multer. Always create-new —
+// no editing of existing artifacts, so no versioning.
+const generateSchema = z
+  .object({
+    prompt: z.string().trim().min(1, 'prompt is required').max(4000, 'prompt is too long'),
+  })
+  .strict()
+
+// Readable, filesystem- and header-safe name from the document's first "# Heading",
+// falling back to the first words of the prompt.
+function documentSlug(markdown: string, prompt: string): string {
+  const slugify = (text: string) =>
+    text
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 60)
+      .replace(/-+$/, '')
+
+  const heading = /^#\s+(.+)$/m.exec(markdown)?.[1]
+  return (
+    (heading && slugify(heading)) ||
+    slugify(prompt.split(/\s+/).slice(0, 6).join(' ')) ||
+    'generated-document'
+  )
+}
+
+// A generated file whose name is already taken in this project gets the "name_(2).md"
+// style in its DISPLAYED name (per the requirements' duplicate-filename rule). The blob
+// path keeps the plain slug; uniqueness there comes from addRandomSuffix.
+async function uniqueFileName(projectId: string, slug: string): Promise<string> {
+  const snap = await adminDb
+    .collection('projects')
+    .doc(projectId)
+    .collection('artifacts')
+    .where('fileName', '>=', slug)
+    .where('fileName', '<', `${slug}\uf8ff`)
+    .get()
+  const taken = new Set(snap.docs.map((d) => String(d.get('fileName')).toLowerCase()))
+
+  let name = `${slug}.md`
+  for (let n = 2; taken.has(name.toLowerCase()); n++) name = `${slug}_(${n}).md`
+  return name
+}
+
+router.post(
+  '/:projectId/artifacts/generate',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!BLOB_TOKEN) throw HttpError.internal('BLOB_READ_WRITE_TOKEN is not set')
+
+      const { user } = req as AuthenticatedRequest
+      const projectId = reqParam(req, 'projectId')
+
+      const parsed = generateSchema.safeParse(req.body)
+      if (!parsed.success) {
+        return next(HttpError.badRequest(parsed.error.errors[0]?.message ?? 'Invalid input'))
+      }
+      const { prompt } = parsed.data
+
+      // Membership first, so a non-member never reaches the (slow) AI call.
+      const role = await requireMember(projectId, user.uid)
+      const context = await buildProjectContext(projectId, user.uid)
+      const markdown = await generateDocument(context, prompt)
+
+      const slug = documentSlug(markdown, prompt)
+      const fileName = await uniqueFileName(projectId, slug)
+      const buffer = Buffer.from(markdown, 'utf8')
+
+      const blob = await put(`projects/${projectId}/${slug}.md`, buffer, {
+        access: 'private',
+        token: BLOB_TOKEN,
+        contentType: 'text/markdown',
+        addRandomSuffix: true, // avoid collisions on same-named files
+      })
+
+      const artifactRef = adminDb
+        .collection('projects')
+        .doc(projectId)
+        .collection('artifacts')
+        .doc()
+
+      // Same shape as an upload. Attribution is the triggering user's real uid
+      // (stored in `uploadedBy`, the schema's attribution field); `source` marks it as AI-made.
+      await artifactRef.set({
+        fileName,
+        contentType: 'text/markdown',
+        size: buffer.length,
+        blobUrl: blob.url,
+        blobPathname: blob.pathname,
+        uploadedBy: user.uid,
+        role,
+        source: 'ai',
+        createdAt: FieldValue.serverTimestamp(),
+      })
+
+      // Same shape as the list route: blobUrl is deliberately not handed to the client.
+      res.status(201).json({
+        id: artifactRef.id,
+        fileName,
+        contentType: 'text/markdown',
+        size: buffer.length,
+        uploadedBy: user.uid,
+        role,
+        source: 'ai',
+      })
     } catch (err) {
       next(err)
     }
@@ -116,6 +235,20 @@ router.get('/:projectId/artifacts', async (req: Request, res: Response, next: Ne
       .orderBy('createdAt', 'desc')
       .get()
 
+    // Contributor display names for the Files panel (project members only see this).
+    const uids = [
+      ...new Set(snap.docs.map((d) => d.get('uploadedBy') as string | undefined)),
+    ].filter((uid): uid is string => typeof uid === 'string' && uid.length > 0)
+    const names = new Map<string, string | null>()
+    if (uids.length > 0) {
+      const userSnaps = await adminDb.getAll(
+        ...uids.map((uid) => adminDb.collection('users').doc(uid))
+      )
+      for (const u of userSnaps) {
+        names.set(u.id, (u.get('displayName') as string | null | undefined) ?? null)
+      }
+    }
+
     const artifacts = snap.docs.map((d) => {
       const data = d.data()
       return {
@@ -124,7 +257,10 @@ router.get('/:projectId/artifacts', async (req: Request, res: Response, next: Ne
         contentType: data.contentType,
         size: data.size,
         uploadedBy: data.uploadedBy,
+        uploadedByName: names.get(data.uploadedBy) ?? null,
         role: data.role,
+        // Documents created before `source` existed are uploads.
+        source: data.source ?? 'upload',
         // blobUrl deliberately NOT returned — downloads go through the
         // download route below, which re-checks membership. Don't hand the
         // raw blob URL to the client.

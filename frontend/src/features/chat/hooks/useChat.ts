@@ -18,17 +18,31 @@ interface ProblemDetails {
   detail?: string
 }
 
+// "/generate <prompt>" creates a Markdown file instead of sending a normal chat message.
+// The word boundary keeps "/generated ..." and "/generate-x" as ordinary messages.
+const GENERATE_COMMAND = /^\/generate(?:\s+([\s\S]*))?$/i
+const GENERATE_USAGE =
+  'Usage: /generate <what you want written>, e.g. /generate login page requirements'
+
 export function useChat(projectId: string) {
   // One id per mount; the backend stores it as sourceChatId on extracted context.
   const [sessionId] = useState(() => crypto.randomUUID())
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isSending, setIsSending] = useState(false)
+  const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const send = useCallback(
     async (content: string): Promise<ChatResponse | null> => {
       const text = content.trim()
       if (!text || isSending) return null
+
+      const command = GENERATE_COMMAND.exec(text)
+      const generatePrompt = command ? (command[1] ?? '').trim() : null
+      if (command && !generatePrompt) {
+        setError(GENERATE_USAGE)
+        return null
+      }
 
       const userMessage: ChatMessage = {
         id: crypto.randomUUID(),
@@ -38,6 +52,7 @@ export function useChat(projectId: string) {
       }
       setError(null)
       setIsSending(true)
+      setIsGenerating(generatePrompt !== null)
       setMessages((prev) => [...prev, userMessage])
 
       try {
@@ -51,11 +66,20 @@ export function useChat(projectId: string) {
 
         let res: Response
         try {
-          res = await fetch(`${API_BASE}/api/chat`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-            body: JSON.stringify({ projectId, sessionId, message: text }),
-          })
+          res = await fetch(
+            generatePrompt !== null
+              ? `${API_BASE}/api/projects/${projectId}/artifacts/generate`
+              : `${API_BASE}/api/chat`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+              body: JSON.stringify(
+                generatePrompt !== null
+                  ? { prompt: generatePrompt }
+                  : { projectId, sessionId, message: text }
+              ),
+            }
+          )
         } catch {
           throw new Error('Could not reach the chat server. Check your connection and try again.')
         }
@@ -65,7 +89,16 @@ export function useChat(projectId: string) {
           throw new Error(problem?.detail ?? `Request failed (${res.status})`)
         }
 
-        const data = (await res.json()) as ChatResponse
+        let data: ChatResponse
+        if (generatePrompt !== null) {
+          const artifact = (await res.json()) as { fileName: string }
+          data = {
+            reply: `Created "${artifact.fileName}". Open Files to view or download it.`,
+            entriesWritten: 0,
+          }
+        } else {
+          data = (await res.json()) as ChatResponse
+        }
         setMessages((prev) => [
           ...prev,
           { id: crypto.randomUUID(), sender: 'ai', content: data.reply, timestamp: new Date() },
@@ -79,10 +112,11 @@ export function useChat(projectId: string) {
         return null
       } finally {
         setIsSending(false)
+        setIsGenerating(false)
       }
     },
     [projectId, sessionId, isSending]
   )
 
-  return { messages, isSending, error, send }
+  return { messages, isSending, isGenerating, error, send }
 }

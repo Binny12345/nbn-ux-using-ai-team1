@@ -50,7 +50,7 @@ export function ChatTopBar({ project, currentUser, fileCount, isPM, onOpenArtifa
           Files
           {fileCount > 0 && (
             <span className="ml-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium text-white">
-              {fileCount}
+              {fileCount > 9 ? '9+' : fileCount}
             </span>
           )}
         </button>

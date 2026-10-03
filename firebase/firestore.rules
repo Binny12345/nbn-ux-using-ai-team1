@@ -66,8 +66,8 @@ service cloud.firestore {
     // write goes through the backend routes (Admin SDK, which bypasses rules),
     // so clients never create, update or delete.
     // The backend writes exactly: fileName, contentType, size, blobUrl,
-    // blobPathname, uploadedBy, role, createdAt. If client writes are ever
-    // enabled, the hasAll/hasOnly lists must match that set exactly.
+    // blobPathname, uploadedBy, role, source, createdAt. If client writes are
+    // ever enabled, the hasAll/hasOnly lists must match that set exactly.
     match /projects/{projectId}/artifacts/{artifactId} {
       allow read: if isProjectMember(projectId);
       allow write: if false;
