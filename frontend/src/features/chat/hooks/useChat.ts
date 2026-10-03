@@ -12,6 +12,8 @@ const API_BASE = rawApiUrl && !/^https?:\/\//i.test(rawApiUrl) ? `https://${rawA
 interface ChatResponse {
   reply: string
   entriesWritten: number
+  // true when /generate stored a new file
+  artifactCreated?: boolean
 }
 
 interface ProblemDetails {
@@ -95,6 +97,7 @@ export function useChat(projectId: string) {
           data = {
             reply: `Created "${artifact.fileName}". Open Files to view or download it.`,
             entriesWritten: 0,
+            artifactCreated: true,
           }
         } else {
           data = (await res.json()) as ChatResponse

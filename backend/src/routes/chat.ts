@@ -3,7 +3,7 @@ import type { Request, Response, NextFunction } from 'express'
 import { z } from 'zod'
 import type { AuthenticatedRequest } from '../middleware/auth'
 import { HttpError } from '../lib/errors'
-import { buildProjectContext } from '../lib/context'
+import { buildProjectBriefing } from '../lib/context'
 import { generateReply, extractEntries } from '../lib/ai'
 import { persistContext } from '../lib/persistContext'
 
@@ -31,16 +31,22 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
 
     const { projectId, sessionId, message } = parsed.data
 
-    // Read side (partner's): load the project's active context, membership-gated.
-    const context = await buildProjectContext(projectId, user.uid)
+    // Full project briefing: who's talking, who else is on the project, what
+    // the project is, and the shared context contributed so far.
+    const briefing = await buildProjectBriefing(projectId, user.uid)
+    
+    //Checks if project is archived
+    if (briefing.status === 'archived') {
+      return next(HttpError.badRequest('This project is archived and no longer accepts new messages'))
+    }
 
-    // Generate the reply from that context (partner's OpenRouter call).
-    const reply = await generateReply(context, message)
+    // Generate the reply from that briefing.
+    const reply = await generateReply(briefing, message)
 
-    // Write side (this feature): pull durable entries from the exchange and
-    // persist them, attributed. Best-effort — a failure to extract or write
-    // must not fail the user's chat turn, so it is caught and logged and the
-    // reply is still returned.
+    // Write side: pull durable entries from the exchange and persist them,
+    // attributed. Best-effort — a failure to extract or write must not fail
+    // the user's chat turn, so it is caught and logged and the reply is still
+    // returned.
     let entriesWritten = 0
     try {
       const extracted = await extractEntries(message, reply)

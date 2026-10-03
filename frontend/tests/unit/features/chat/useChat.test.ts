@@ -72,6 +72,7 @@ describe('useChat', () => {
     expect(returned).toEqual({
       reply: 'Created "login-page.md". Open Files to view or download it.',
       entriesWritten: 0,
+      artifactCreated: true,
     })
     expect(result.current.messages.map((m) => m.sender)).toEqual(['user', 'ai'])
     expect(result.current.messages[1]?.content).toContain('login-page.md')

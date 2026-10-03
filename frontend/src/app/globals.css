@@ -3,6 +3,22 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --marketing-bg: #f8faff;
+  --marketing-fg: #0f1c3f;
+  --marketing-muted: #4a6fa5;
+  --marketing-muted-light: #8fa8d0;
+  --marketing-card: #ffffff;
+  --marketing-border: #e3ecff;
+  --marketing-border-hover: #b8d0ff;
+  --marketing-primary: #1a6cff;
+  --marketing-primary-hover: #1460e8;
+  --marketing-primary-dark: #0046cc;
+  --marketing-field-bg: #f8faff;
+  --marketing-error: #e03b3b;
+  --marketing-radius: 1rem;
+  --marketing-danger-bg: #fef2f2;
+  --marketing-warning-bg: #fff7ed;
+  --marketing-warning: #d4600a;
 }
 
 @theme inline {
@@ -10,6 +26,22 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --color-marketing-bg: var(--marketing-bg);
+  --color-marketing-fg: var(--marketing-fg);
+  --color-marketing-muted: var(--marketing-muted);
+  --color-marketing-muted-light: var(--marketing-muted-light);
+  --color-marketing-card: var(--marketing-card);
+  --color-marketing-border: var(--marketing-border);
+  --color-marketing-border-hover: var(--marketing-border-hover);
+  --color-marketing-primary: var(--marketing-primary);
+  --color-marketing-primary-hover: var(--marketing-primary-hover);
+  --color-marketing-primary-dark: var(--marketing-primary-dark);
+  --color-marketing-field-bg: var(--marketing-field-bg);
+  --color-marketing-error: var(--marketing-error);
+  --radius-marketing: var(--marketing-radius);
+  --color-marketing-danger-bg: var(--marketing-danger-bg);
+  --color-marketing-warning-bg: var(--marketing-warning-bg);
+  --color-marketing-warning: var(--marketing-warning);
 }
 
 @media (prefers-color-scheme: dark) {
