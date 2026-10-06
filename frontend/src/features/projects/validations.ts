@@ -6,3 +6,5 @@ export const createProjectSchema = z.object({
 })
 
 export type CreateProjectInput = z.infer<typeof createProjectSchema>
+// What the form fields hold before the schema fills in defaults (description is optional here).
+export type CreateProjectFormValues = z.input<typeof createProjectSchema>

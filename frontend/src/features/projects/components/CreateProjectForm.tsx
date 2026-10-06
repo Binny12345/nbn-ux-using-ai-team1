@@ -4,7 +4,11 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { createProjectSchema, type CreateProjectInput } from '../validations'
+import {
+  createProjectSchema,
+  type CreateProjectFormValues,
+  type CreateProjectInput,
+} from '../validations'
 import { createProject } from '../actions/createProject.actions'
 
 export function CreateProjectForm() {
@@ -13,7 +17,7 @@ export function CreateProjectForm() {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<CreateProjectInput>({
+  } = useForm<CreateProjectFormValues, unknown, CreateProjectInput>({
     resolver: zodResolver(createProjectSchema),
   })
 
