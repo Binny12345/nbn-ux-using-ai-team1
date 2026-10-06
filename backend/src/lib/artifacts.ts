@@ -55,8 +55,6 @@ export async function fetchArtifactContentByName(
   if (snap.empty) return null
 
   const data = snap.docs[0]!.data()
-  const data = snap.docs[0]!.data()
-  console.log('Found artifact for /file() lookup:', { fileName: data.fileName, contentType: data.contentType })
 
   // Only markdown content can be meaningfully injected as text right now.
   // Other file types are listed by name but not read.
