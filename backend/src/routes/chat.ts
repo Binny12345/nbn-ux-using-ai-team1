@@ -45,7 +45,6 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
     // On-demand file content: only fetched when the user explicitly
     // references a file with /file(name), never on every turn.
     const referencedNames = extractFileReferences(message)
-    console.log('File references detected:', referencedNames)
     const fileContents: { fileName: string; content: string }[] = []
     for (const name of referencedNames) {
       const content = await fetchArtifactContentByName(projectId, name)
