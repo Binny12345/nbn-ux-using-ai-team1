@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useSyncExternalStore } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ListFilter, UserPlus, ChevronDown, LogOut, Pencil } from 'lucide-react'
+import { ListFilter, UserPlus, ChevronDown, LogOut } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import type { ProjectSummary, UserProfile } from '../types'
 
@@ -110,24 +110,22 @@ export function ChatTopBar({
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col items-center justify-center">
-        <div className="flex items-center gap-1.5">
-          <span className="text-marketing-fg truncate text-sm leading-tight font-semibold">
-            {project.name}
-          </span>
-          {isPM && (
-            <button
-              onClick={onEditDescription}
-              aria-label="Edit project description"
-              className="text-marketing-muted-light hover:bg-marketing-bg hover:text-marketing-primary rounded p-0.5 transition-colors"
-            >
-              <Pencil className="h-3 w-3" />
-            </button>
-          )}
-        </div>
+        <span className="text-marketing-fg truncate text-sm leading-tight font-semibold">
+          {project.name}
+        </span>
         <span className="text-marketing-muted-light text-xs leading-tight">{lastEdited}</span>
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
+        {isPM && (
+          <button
+            onClick={onEditDescription}
+            className="text-marketing-primary hover:bg-marketing-bg rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors"
+          >
+            Edit Description
+          </button>
+        )}
+
         <div className="group relative">
           <button
             onClick={onOpenInvite}

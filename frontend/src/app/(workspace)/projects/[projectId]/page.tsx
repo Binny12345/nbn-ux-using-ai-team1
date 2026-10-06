@@ -17,6 +17,11 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
   const projectDoc = await adminDb.collection('projects').doc(projectId).get()
   const projectData = projectDoc.data()
 
+  // Archived projects can't be opened; the PM restores one with Unarchive on the dashboard.
+  if (projectData?.status === 'archived') {
+    redirect('/projects')
+  }
+
   const userDoc = await adminDb.collection('users').doc(session.uid).get()
   const displayName = (userDoc.data()?.displayName as string | undefined) ?? session.email ?? 'You'
 
