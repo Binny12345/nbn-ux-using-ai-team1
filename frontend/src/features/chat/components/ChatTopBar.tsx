@@ -10,7 +10,7 @@ import type { ProjectSummary, UserProfile } from '../types'
 interface ChatTopBarProps {
   project: ProjectSummary
   currentUser: UserProfile
-  fileCount: number
+  unreadCount: number
   isPM: boolean
   onOpenFiles: () => void
   onOpenInvite: () => void
@@ -31,7 +31,7 @@ function initials(name: string) {
 export function ChatTopBar({
   project,
   currentUser,
-  fileCount,
+  unreadCount,
   isPM,
   onOpenFiles,
   onOpenInvite,
@@ -96,14 +96,15 @@ export function ChatTopBar({
         <div className="relative">
           <button
             onClick={onOpenFiles}
+            aria-label={unreadCount > 0 ? `Files (${unreadCount} new)` : 'Files'}
             className="text-marketing-muted hover:bg-marketing-bg hover:text-marketing-primary flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors"
           >
             <ListFilter className="h-4 w-4" />
             Files
           </button>
-          {fileCount > 0 && (
+          {unreadCount > 0 && (
             <span className="bg-marketing-error pointer-events-none absolute top-0.5 -right-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] leading-none font-bold text-white shadow-[0_1px_4px_rgba(224,59,59,0.4)]">
-              {fileCount > 9 ? '9+' : fileCount}
+              {unreadCount > 9 ? '9+' : unreadCount}
             </span>
           )}
         </div>
