@@ -78,7 +78,7 @@ describe('POST /api/chat', () => {
     expect(res.status).toBe(200)
     expect(res.body).toEqual({ reply: 'Here is my response.', entriesWritten: 1 })
     expect(buildProjectBriefing).toHaveBeenCalledWith('p1', mockUser.uid)
-    expect(generateReply).toHaveBeenCalledWith(sampleBriefing, 'summarise the requirements')
+    expect(generateReply).toHaveBeenCalledWith(sampleBriefing, 'summarise the requirements', [])
     expect(extractEntries).toHaveBeenCalledWith(
       'summarise the requirements',
       'Here is my response.'

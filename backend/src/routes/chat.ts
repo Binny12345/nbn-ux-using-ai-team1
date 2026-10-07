@@ -8,7 +8,6 @@ import { generateReply, extractEntries } from '../lib/ai'
 import { persistContext } from '../lib/persistContext'
 import { extractFileReferences, fetchArtifactContentByName } from '../lib/artifacts'
 
-
 const router: ExpressRouter = Router()
 
 // sessionId is required so extracted entries can record which chat they came
@@ -36,12 +35,12 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
     // Full project briefing: who's talking, who else is on the project, what
     // the project is, and the shared context contributed so far.
     const briefing = await buildProjectBriefing(projectId, user.uid)
-    
-    //Checks if project is archived
+
+    // Checks if project is archived
     if (briefing.status === 'archived') {
       return next(HttpError.badRequest('This project is archived and no longer accepts new messages'))
     }
-    
+
     // On-demand file content: only fetched when the user explicitly
     // references a file with /file(name), never on every turn.
     const referencedNames = extractFileReferences(message)
@@ -51,8 +50,8 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
       if (content !== null) fileContents.push({ fileName: name, content })
     }
 
-    // Generate the reply from that briefing.
-    const reply = await generateReply(briefing, message)
+    // Generate the reply from that briefing, including any referenced file content.
+    const reply = await generateReply(briefing, message, fileContents)
 
     // Write side: pull durable entries from the exchange and persist them,
     // attributed. Best-effort — a failure to extract or write must not fail
