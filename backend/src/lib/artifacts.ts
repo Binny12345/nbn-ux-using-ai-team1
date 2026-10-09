@@ -2,6 +2,8 @@ import { adminDb } from './firebase'
 import { HttpError } from './errors'
 
 const BLOB_TOKEN = process.env.BLOB_READ_WRITE_TOKEN
+const FILE_FETCH_TIMEOUT_MS = 8_000
+const MAX_FILE_CHARS = 20_000
 
 export interface ArtifactBrief {
   id: string
@@ -60,12 +62,20 @@ export async function fetchArtifactContentByName(
   // Other file types are listed by name but not read.
   if (data.contentType !== 'text/markdown') return null
 
-  const blobRes = await fetch(data.blobUrl, {
-    headers: { Authorization: `Bearer ${BLOB_TOKEN}` },
-  })
-  if (!blobRes.ok) return null
+  // A slow or failing blob must not hang or fail the whole chat turn: give up and skip the file.
+  try {
+    const blobRes = await fetch(data.blobUrl, {
+      headers: { Authorization: `Bearer ${BLOB_TOKEN}` },
+      signal: AbortSignal.timeout(FILE_FETCH_TIMEOUT_MS),
+    })
+    if (!blobRes.ok) return null
 
-  return await blobRes.text()
+    // Bounded so one large file can't blow up the prompt.
+    return (await blobRes.text()).slice(0, MAX_FILE_CHARS)
+  } catch (err) {
+    console.warn(`could not read artifact "${fileName}":`, err)
+    return null
+  }
 }
 
 // Parses /file(name) references out of a user message. Supports multiple

@@ -1,6 +1,6 @@
 import { adminDb, FieldValue } from './firebase'
 import { HttpError } from './errors'
-import type { ContextStatus } from './contextTypes'
+import type { ContextStatus, ExtractedEntry } from './contextTypes'
 
 /**
  * The write-back half of the context-sync feature.
@@ -9,19 +9,14 @@ import type { ContextStatus } from './contextTypes'
  * its own document under projects/{projectId}/context, stamped server-side with
  * attribution the client cannot forge (contributedBy, role, sourceChatId).
  *
- * One doc per entry (append-only): nothing is merged or overwritten, so every
- * entry keeps a single author and its own status. New entries are always
+ * One doc per entry: nothing is merged or edited in place, so every entry keeps a
+ * single author. When an entry replaces an older one, the older doc is marked
+ * 'Outdated' (never deleted) and linked to its successor. New entries are always
  * written 'Active' — matching the capitalisation buildProjectContext filters on.
  *
  * Role is resolved from the project's members subcollection, the same
  * membership source buildProjectContext uses, so a non-member cannot write.
  */
-
-// A durable entry as returned by extractEntries() — content + a type string.
-export interface ExtractedEntry {
-  content: string
-  type: string
-}
 
 // New entries are written Active. Must match ContextStatus casing exactly,
 // or the reader (which skips status !== 'Active') filters them out on read.
@@ -60,12 +55,27 @@ export async function persistContext(
   }
   const role = memberSnap.get('role') as string
 
-  // One document per entry, committed atomically.
+  // Entries that replace an existing one: only Active entries of this project can be
+  // replaced, each at most once per exchange. (extractEntries already limits ids to ones it was
+  // shown; this re-checks against Firestore so a stale or invented id can never touch data.)
   const contextRef = projectRef.collection('context')
+  const replaceable = new Map<string, FirebaseFirestore.DocumentReference>()
+  for (const id of new Set(entries.map((e) => e.replaces).filter((id): id is string => !!id))) {
+    const oldRef = contextRef.doc(id)
+    const oldSnap = await oldRef.get()
+    const status = oldSnap.get('status') as ContextStatus | undefined
+    if (oldSnap.exists && (!status || status === 'Active')) replaceable.set(id, oldRef)
+  }
+
+  // One document per entry, committed atomically together with any Outdated marks.
   const batch = adminDb.batch()
+  const replaced = new Set<string>()
 
   for (const entry of entries) {
     const docRef = contextRef.doc()
+    const oldRef =
+      entry.replaces && !replaced.has(entry.replaces) ? replaceable.get(entry.replaces) : undefined
+
     batch.set(docRef, {
       content: entry.content,
       type: entry.type,
@@ -73,8 +83,18 @@ export async function persistContext(
       role, // the contributor's project role at write time
       sourceChatId: sessionId, // where — which chat session produced it
       status: NEW_ENTRY_STATUS, // 'Active'
+      ...(oldRef ? { replaces: oldRef.id } : {}),
       createdAt: FieldValue.serverTimestamp(),
     })
+
+    if (oldRef) {
+      replaced.add(oldRef.id)
+      batch.update(oldRef, {
+        status: 'Outdated' satisfies ContextStatus,
+        supersededBy: docRef.id,
+        outdatedAt: FieldValue.serverTimestamp(),
+      })
+    }
   }
 
   await batch.commit()

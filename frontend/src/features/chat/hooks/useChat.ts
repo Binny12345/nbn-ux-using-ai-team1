@@ -14,7 +14,12 @@ interface ChatResponse {
   entriesWritten: number
   // true when /generate stored a new file
   artifactCreated?: boolean
+  // true when the exchange could not be saved to the shared context (the reply is still valid)
+  contextSaveFailed?: boolean
 }
+
+export const CONTEXT_SAVE_FAILED_NOTICE =
+  "Couldn't save this exchange to the shared context. Say it again in a moment if teammates need it."
 
 interface ProblemDetails {
   detail?: string
@@ -104,7 +109,13 @@ export function useChat(projectId: string) {
         }
         setMessages((prev) => [
           ...prev,
-          { id: crypto.randomUUID(), sender: 'ai', content: data.reply, timestamp: new Date() },
+          {
+            id: crypto.randomUUID(),
+            sender: 'ai',
+            content: data.reply,
+            timestamp: new Date(),
+            ...(data.contextSaveFailed ? { notice: CONTEXT_SAVE_FAILED_NOTICE } : {}),
+          },
         ])
         return data
       } catch (err) {

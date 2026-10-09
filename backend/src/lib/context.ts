@@ -3,6 +3,10 @@ import { HttpError } from './errors'
 import type { ContextEntry, ContextStatus, ProjectBriefing } from './contextTypes'
 import { listProjectArtifacts } from './artifacts'
 
+// The AI prompt carries at most this many of the newest Active entries, so a long-lived
+// project can't grow the prompt (and the response time) without bound.
+export const MAX_CONTEXT_ENTRIES = 60
+
 // One context document as stored under projects/{id}/context/{entryId}.
 interface StoredEntry {
   content: string
@@ -11,6 +15,36 @@ interface StoredEntry {
   role: string
   sourceChatId?: string
   status?: ContextStatus
+}
+
+// Newest Active entries, oldest first. Fetches twice the cap so Outdated entries (which
+// are skipped) don't crowd out Active ones.
+async function loadActiveContext(
+  projectRef: FirebaseFirestore.DocumentReference
+): Promise<ContextEntry[]> {
+  const snap = await projectRef
+    .collection('context')
+    .orderBy('createdAt', 'desc')
+    .limit(MAX_CONTEXT_ENTRIES * 2)
+    .get()
+
+  const entries: ContextEntry[] = []
+  for (const doc of snap.docs) {
+    const d = doc.data() as StoredEntry
+    // Skip superseded entries — only Active context is used.
+    if (d.status && d.status !== 'Active') continue
+    entries.push({
+      id: doc.id,
+      content: d.content,
+      type: d.type,
+      contributedBy: d.contributedBy,
+      role: d.role,
+      sourceChatId: d.sourceChatId ?? '',
+      status: 'Active',
+    })
+    if (entries.length >= MAX_CONTEXT_ENTRIES) break
+  }
+  return entries.reverse()
 }
 
 export async function buildProjectContext(projectId: string, uid: string): Promise<ContextEntry[]> {
@@ -27,27 +61,13 @@ export async function buildProjectContext(projectId: string, uid: string): Promi
     throw HttpError.notFound('Project', projectId)
   }
 
-  const contextSnap = await projectRef.collection('context').get()
-
-  const entries: ContextEntry[] = []
-  contextSnap.forEach((doc) => {
-    const d = doc.data() as StoredEntry
-    // Skip superseded entries — only Active context is used.
-    if (d.status && d.status !== 'Active') return
-    entries.push({
-      content: d.content,
-      type: d.type,
-      contributedBy: d.contributedBy,
-      role: d.role,
-      sourceChatId: d.sourceChatId ?? '',
-      status: 'Active',
-    })
-  })
-
-  return entries
+  return loadActiveContext(projectRef)
 }
 
-export async function getUserRoleForProject(projectId: string, uid: string): Promise<string | null> {
+export async function getUserRoleForProject(
+  projectId: string,
+  uid: string
+): Promise<string | null> {
   const memberSnap = await adminDb
     .collection('projects')
     .doc(projectId)
@@ -64,7 +84,10 @@ export async function getUserRoleForProject(projectId: string, uid: string): Pro
 // who else is on the project, what the project is, and the shared context
 // contributed so far. Replaces buildProjectContext for the chat endpoint;
 // buildProjectContext/getUserRoleForProject stay for any other callers.
-export async function buildProjectBriefing(projectId: string, uid: string): Promise<ProjectBriefing> {
+export async function buildProjectBriefing(
+  projectId: string,
+  uid: string
+): Promise<ProjectBriefing> {
   const projectRef = adminDb.collection('projects').doc(projectId)
   const projectSnap = await projectRef.get()
   if (!projectSnap.exists) {
@@ -91,20 +114,7 @@ export async function buildProjectBriefing(projectId: string, uid: string): Prom
     })
   )
 
-  const contextSnap = await projectRef.collection('context').get()
-  const context: ContextEntry[] = []
-  contextSnap.forEach((doc) => {
-    const d = doc.data() as StoredEntry
-    if (d.status && d.status !== 'Active') return
-    context.push({
-      content: d.content,
-      type: d.type,
-      contributedBy: d.contributedBy,
-      role: d.role,
-      sourceChatId: d.sourceChatId ?? '',
-      status: 'Active',
-    })
-  })
+  const context = await loadActiveContext(projectRef)
 
   const artifacts = await listProjectArtifacts(projectId)
 

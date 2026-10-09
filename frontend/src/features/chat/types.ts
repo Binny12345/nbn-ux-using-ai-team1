@@ -4,6 +4,8 @@ export interface ChatMessage {
   content: string
   timestamp: Date
   failed?: boolean
+  // Shown under the message, e.g. when this exchange could not be saved to the shared context.
+  notice?: string
 }
 
 export interface ContextEntry {
