@@ -1,6 +1,12 @@
 import OpenAI from 'openai'
 import { HttpError } from './errors'
-import type { ProjectBriefing, ContextEntry } from './contextTypes'
+import type {
+  ProjectBriefing,
+  ContextEntry,
+  ExtractedEntry,
+  ExtractedEntryType,
+  ExtractionResult,
+} from './contextTypes'
 
 let client: OpenAI | null = null
 
@@ -17,21 +23,32 @@ function getClient(): OpenAI {
 
 // Tried in order. Free OpenRouter models are frequently rate-limited (429) or
 // withdrawn (404), so a failure moves on to the next entry. Verify ids at
-// https://openrouter.ai/models.
-export const MODELS = [
+// https://openrouter.ai/models, and re-test before adding one: several free models listed
+// there are unusable through the API (e.g. inkling returns 403).
+const CAPABLE_MODELS = [
+  'nvidia/nemotron-3-ultra-550b-a55b:free',
   'nvidia/nemotron-3-super-120b-a12b:free',
-  'qwen/qwen3.8-27b:free',
+  'poolside/laguna-s-2.1:free',
   'nvidia/nemotron-3.5-lightning:free',
+]
+export const MODELS = [
+  ...CAPABLE_MODELS,
   'google/gemma-4-31b-it:free',
+  // Fast, but answers with an empty list to nearly every extraction, so it is a last resort
+  // for chat replies only.
   'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
 ]
+// Extraction needs a model that follows the "only the user's project facts" instruction.
+export const EXTRACTION_MODELS = CAPABLE_MODELS
 // Never add 'openrouter/free' here: it routes to a random free model, including
 // content-safety classifiers ("User Safety: safe") and code/finance-tuned ones.
 const MAX_TOKENS = 1024
 const REQUEST_TIMEOUT_MS = 15_000
 // Vercel functions are capped at 60s and one chat turn makes two calls (reply + extraction).
-const REPLY_BUDGET_MS = 35_000
-const EXTRACT_BUDGET_MS = 20_000
+const REPLY_BUDGET_MS = 30_000
+const EXTRACT_BUDGET_MS = 22_000
+// Extraction answers are tiny, so a model that has not replied in 10s is stuck: move on.
+const EXTRACT_REQUEST_TIMEOUT_MS = 10_000
 // Documents are far longer than chat replies. The /generate route also needs a few
 // seconds for the blob upload and Firestore write, so stay well under the 60s cap.
 const DOCUMENT_MAX_TOKENS = 2048
@@ -41,6 +58,10 @@ const DOCUMENT_BUDGET_MS = 50_000
 interface CompleteOptions {
   maxTokens?: number
   requestTimeoutMs?: number
+  // Models to try, in order. Defaults to MODELS.
+  models?: readonly string[]
+  // Return false to reject an answer (e.g. unparseable) and try the next model instead.
+  accept?: (content: string) => boolean
 }
 
 function shouldFallBack(err: unknown): boolean {
@@ -59,12 +80,17 @@ function formatContext(context: ContextEntry[]): string {
 async function complete(
   messages: OpenAI.Chat.ChatCompletionMessageParam[],
   budgetMs: number,
-  { maxTokens = MAX_TOKENS, requestTimeoutMs = REQUEST_TIMEOUT_MS }: CompleteOptions = {}
+  {
+    maxTokens = MAX_TOKENS,
+    requestTimeoutMs = REQUEST_TIMEOUT_MS,
+    models = MODELS,
+    accept,
+  }: CompleteOptions = {}
 ): Promise<string> {
   const start = Date.now()
   let lastErr: unknown = null
 
-  for (const model of MODELS) {
+  for (const model of models) {
     const remaining = budgetMs - (Date.now() - start)
     if (remaining <= 0) break
     try {
@@ -74,9 +100,14 @@ async function complete(
       )
       // OpenRouter can answer 200 with an error body and no `choices` when the upstream fails mid-request.
       const content = completion.choices?.[0]?.message?.content ?? ''
-      if (content.trim().length > 0) return content
-      // Reasoning models can spend the whole token budget thinking and return nothing.
-      console.warn(`OpenRouter model ${model} returned empty content; trying next`)
+      if (content.trim().length === 0) {
+        // Reasoning models can spend the whole token budget thinking and return nothing.
+        console.warn(`OpenRouter model ${model} returned empty content; trying next`)
+      } else if (accept && !accept(content)) {
+        console.warn(`OpenRouter model ${model} returned an unusable answer; trying next`)
+      } else {
+        return content
+      }
       lastErr = null
     } catch (err) {
       if (err instanceof HttpError) throw err
@@ -87,14 +118,16 @@ async function complete(
     }
   }
 
-  if (lastErr) throw lastErr
-  return ''
+  throw lastErr ?? new Error('No model returned a usable answer')
 }
 
 // Render the full project briefing into a system prompt: who the AI is
 // talking to, who else is on the project, what the project is, and the
 // shared context contributed so far — all known before the user says anything.
-function formatBriefing(briefing: ProjectBriefing, fileContents: { fileName: string; content: string }[] = []): string {
+function formatBriefing(
+  briefing: ProjectBriefing,
+  fileContents: { fileName: string; content: string }[] = []
+): string {
   const memberList = briefing.members
     .map((m) => {
       const name = m.displayName ?? 'Unnamed user'
@@ -114,15 +147,16 @@ function formatBriefing(briefing: ProjectBriefing, fileContents: { fileName: str
   const artifactList =
     briefing.artifacts.length > 0
       ? briefing.artifacts
-          .map((a) => `- ${a.fileName} (${a.contentType}, ${a.source === 'ai' ? 'AI-generated' : 'uploaded'})`)
+          .map(
+            (a) =>
+              `- ${a.fileName} (${a.contentType}, ${a.source === 'ai' ? 'AI-generated' : 'uploaded'})`
+          )
           .join('\n')
       : 'No files have been added to this project yet.'
 
   const fileContentText =
     fileContents.length > 0
-      ? fileContents
-          .map((f) => `--- ${f.fileName} ---\n${f.content}`)
-          .join('\n\n')
+      ? fileContents.map((f) => `--- ${f.fileName} ---\n${f.content}`).join('\n\n')
       : ''
 
   return [
@@ -132,7 +166,9 @@ function formatBriefing(briefing: ProjectBriefing, fileContents: { fileName: str
     `Project members:\n${memberList}`,
     `You are currently talking to: ${briefing.currentUser.role} (uid ${briefing.currentUser.uid}). If they ask who they are, answer directly using this information, do not say it is unknown.`,
     `Files in this project:\n${artifactList}\nYou know these files exist, but you can only see the content of a markdown file when the user references it with /file(filename) in their message. If they ask about a file's content without using that syntax, tell them to reference it that way, e.g. /file(${briefing.artifacts[0]?.fileName ?? 'example.md'}).`,
-    fileContentText ? `Content of the file(s) referenced in this message:\n\n${fileContentText}` : '',
+    fileContentText
+      ? `Content of the file(s) referenced in this message:\n\n${fileContentText}`
+      : '',
     `Shared context contributed so far, attributed by role and user id. Do not assume one person's self-described facts (like a name) apply to anyone else, including the current speaker, unless the context entry is explicitly credited to them:\n\n${contextText}`,
   ]
     .filter(Boolean)
@@ -212,34 +248,148 @@ function stripCodeFence(raw: string): string {
     .replace(/\s*```$/, '')
 }
 
+const ENTRY_TYPES: readonly ExtractedEntryType[] = ['decision', 'requirement', 'note']
+const MAX_EXTRACTED_ENTRIES = 5
+const MAX_ENTRY_CHARS = 300
+const MEMORY_PREVIEW_CHARS = 160
+// Two entries this similar (shared words / all words) are treated as the same fact.
+const NEAR_DUPLICATE_SIMILARITY = 0.8
+
+const EXTRACTION_SYSTEM_PROMPT =
+  'You maintain the shared memory of a project team. From the exchange below, record ONLY ' +
+  'project-specific facts that the USER stated or confirmed: decisions, requirements, ' +
+  'constraints, owners, deadlines and names. The assistant reply is shown only so you can see ' +
+  "what the user agreed to. Never record the assistant's own explanations, advice, suggestions " +
+  'or general knowledge, and never record answers to questions. If the user only asks a ' +
+  'question, requests a summary or a draft, or makes small talk, return []. Skip anything ' +
+  'already captured in EXISTING MEMORY. If the user changes or contradicts an item in ' +
+  'EXISTING MEMORY, output the new fact with "replaces" set to that item\'s id. Write each ' +
+  'entry as one short, self-contained sentence under 200 characters. At most ' +
+  `${MAX_EXTRACTED_ENTRIES} entries. Return ONLY a JSON array of objects shaped ` +
+  '{"content": string, "type": "decision" | "requirement" | "note", "replaces": string (optional)}. ' +
+  'Return [] if nothing qualifies.'
+
+function normalizeText(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function similarity(a: string, b: string): number {
+  const wordsA = new Set(a.split(' ').filter((w) => w.length > 1))
+  const wordsB = new Set(b.split(' ').filter((w) => w.length > 1))
+  if (wordsA.size === 0 || wordsB.size === 0) return 0
+  let shared = 0
+  for (const w of wordsA) if (wordsB.has(w)) shared++
+  return shared / (wordsA.size + wordsB.size - shared)
+}
+
+// Backstop for the prompt's "skip anything already captured": models do not reliably obey it.
+function dropDuplicates(entries: ExtractedEntry[], existing: ContextEntry[]): ExtractedEntry[] {
+  const known = existing.map((e) => ({ id: e.id, text: normalizeText(e.content) }))
+  const seen: string[] = []
+  const kept: ExtractedEntry[] = []
+  for (const entry of entries) {
+    const text = normalizeText(entry.content)
+    // An entry that replaces another may resemble it; it is only redundant if identical.
+    const repeatsExisting = known.some((k) =>
+      k.id === entry.replaces
+        ? k.text === text
+        : similarity(k.text, text) >= NEAR_DUPLICATE_SIMILARITY
+    )
+    const repeatsEarlier = seen.some((s) => similarity(s, text) >= NEAR_DUPLICATE_SIMILARITY)
+    if (repeatsExisting || repeatsEarlier) continue
+    seen.push(text)
+    kept.push(entry)
+  }
+  return kept
+}
+
+// Finds the JSON array in a model answer, tolerating prose or fences around it.
+function parseJsonArray(raw: string): unknown[] | null {
+  const text = stripCodeFence(raw || '[]')
+  const candidates = [text, text.slice(text.indexOf('['), text.lastIndexOf(']') + 1)]
+  for (const candidate of candidates) {
+    if (!candidate) continue
+    try {
+      const value: unknown = JSON.parse(candidate)
+      if (Array.isArray(value)) return value
+    } catch {
+      // try the next candidate
+    }
+  }
+  return null
+}
+
+// null = the answer was not usable (the caller tries the next model); [] = nothing to save.
+function parseExtraction(raw: string, existing: ContextEntry[]): ExtractedEntry[] | null {
+  const items = parseJsonArray(raw)
+  if (items === null) return null
+
+  const existingIds = new Set(existing.map((e) => e.id))
+  const entries: ExtractedEntry[] = []
+  for (const item of items) {
+    if (entries.length >= MAX_EXTRACTED_ENTRIES) break
+    if (!item || typeof item !== 'object') continue
+    const record = item as Record<string, unknown>
+    const content =
+      typeof record.content === 'string' ? record.content.trim().slice(0, MAX_ENTRY_CHARS) : ''
+    if (!content) continue
+    const type = ENTRY_TYPES.find((t) => t === record.type) ?? 'note'
+    // Only ids the model was actually shown can be replaced; anything else is a hallucination.
+    const replaces =
+      typeof record.replaces === 'string' && existingIds.has(record.replaces)
+        ? record.replaces
+        : undefined
+    entries.push(replaces ? { content, type, replaces } : { content, type })
+  }
+  return dropDuplicates(entries, existing)
+}
+
+// Pulls durable project facts out of one chat exchange. Never throws for model trouble:
+// `failed: true` tells the caller the exchange could not be processed, which is different
+// from `entries: []` (processed, nothing worth saving).
 export async function extractEntries(
   userMessage: string,
-  assistantReply: string
-): Promise<Array<{ content: string; type: string }>> {
-  const system =
-    'You extract durable, reusable facts from a conversation exchange. ' +
-    'Return ONLY a JSON array of objects with "content" and "type" fields, ' +
-    'where type is one of: decision, requirement, note. ' +
-    'Capture only things worth remembering across sessions; return [] if nothing is durable.'
+  assistantReply: string,
+  existing: ContextEntry[] = [],
+  options: { budgetMs?: number } = {}
+): Promise<ExtractionResult> {
+  const memory =
+    existing.length > 0
+      ? existing
+          .map((e) => `[${e.id}] (${e.type}) ${e.content.slice(0, MEMORY_PREVIEW_CHARS)}`)
+          .join('\n')
+      : '(none yet)'
 
   try {
-    const raw = await complete(
+    let entries: ExtractedEntry[] = []
+    await complete(
       [
-        { role: 'system', content: system },
-        { role: 'user', content: `User: ${userMessage}\n\nAssistant: ${assistantReply}` },
+        { role: 'system', content: EXTRACTION_SYSTEM_PROMPT },
+        {
+          role: 'user',
+          content: `EXISTING MEMORY:\n${memory}\n\nEXCHANGE:\nUser: ${userMessage}\n\nAssistant: ${assistantReply}`,
+        },
       ],
-      EXTRACT_BUDGET_MS
+      options.budgetMs ?? EXTRACT_BUDGET_MS,
+      {
+        models: EXTRACTION_MODELS,
+        requestTimeoutMs: EXTRACT_REQUEST_TIMEOUT_MS,
+        accept: (raw) => {
+          const parsed = parseExtraction(raw, existing)
+          if (parsed === null) return false
+          entries = parsed
+          return true
+        },
+      }
     )
-
-    const parsed = JSON.parse(stripCodeFence(raw || '[]')) as Array<{
-      content: string
-      type: string
-    }>
-    if (!Array.isArray(parsed)) return []
-    return parsed.filter((e) => e && typeof e.content === 'string' && typeof e.type === 'string')
+    return { entries, failed: false }
   } catch (err) {
     if (err instanceof HttpError) throw err
-    console.error('extractEntries: OpenRouter call or parse failed:', err)
-    return []
+    console.error('extractEntries: no model produced a usable answer:', err)
+    return { entries: [], failed: true }
   }
 }

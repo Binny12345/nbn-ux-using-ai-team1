@@ -87,10 +87,16 @@ This subcollection is the source of truth for membership and role. Both the fron
 | `contributedBy` | `string` | Yes | UID of the user whose chat produced it. Set by the server from the verified token — never from the request body |
 | `role` | `string` | Yes | The contributor's project role at write time (copied from their `members` document) |
 | `sourceChatId` | `string` | Yes | The chat session ID the entry was extracted from |
-| `status` | `'Active' \| 'Outdated'` | Yes | Only `Active` entries are used as context; `Outdated` is reserved for superseded entries |
+| `status` | `'Active' \| 'Outdated'` | Yes | Only `Active` entries are used as context. An entry becomes `Outdated` when a later entry replaces it (see `supersededBy`); it is never deleted |
+| `replaces` | `string` | No | On a new entry: the ID of the older entry it replaced. Set only when that entry existed and was `Active` |
+| `supersededBy` | `string` | No | On an `Outdated` entry: the ID of the entry that replaced it |
+| `outdatedAt` | `Timestamp` | No | On an `Outdated` entry: when it was replaced |
 | `createdAt` | `Timestamp` | Yes | Server timestamp |
 
-**Design:** append-only — one document per entry, never merged or overwritten, so concurrent writers cannot clobber each other and every entry keeps a single author (attribution).
+**Design:** one document per entry, never merged or edited in place, so concurrent writers cannot clobber each other and every entry keeps a single author (attribution). The only change to an existing entry is `status: 'Outdated'` (plus `supersededBy` / `outdatedAt`) when the chat extractor reports that a new fact replaces it; the write happens in the same batch as the new entry.
+**What gets saved:** after each chat reply the extractor (`extractEntries`) sees the user's message, the assistant's reply and the current `Active` entries, and saves only project facts the *user* stated or confirmed: at most 5 per exchange, each under 300 characters. Entries that repeat an existing one (same words, ignoring case and punctuation, or about 80% overlap) are dropped. General explanations from the assistant are not saved.
+**What the AI sees:** the newest 60 `Active` entries are included in each prompt; older ones stay in Firestore but are not sent.
+**Failures:** if extraction or the write fails, `POST /api/chat` still returns the reply but adds `contextSaveFailed: true`, and the chat shows a notice on that message. An exchange with nothing worth saving is not a failure (`entriesWritten: 0`, no flag).
 **Note:** `_schemaVersion` is not set on this collection yet.
 
 ### `artifacts` subcollection

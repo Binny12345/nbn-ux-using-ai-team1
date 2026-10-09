@@ -114,4 +114,25 @@ describe('useChat', () => {
     expect(result.current.isSending).toBe(false)
     expect(result.current.isGenerating).toBe(false)
   })
+
+  it('puts a notice on the AI reply when the exchange could not be saved to the shared context', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ reply: 'sure thing', entriesWritten: 0, contextSaveFailed: true })
+    )
+
+    const { result, returned } = await sendMessage('we use CSV')
+
+    expect(returned).toMatchObject({ contextSaveFailed: true })
+    const aiMessage = result.current.messages[1]
+    expect(aiMessage?.content).toBe('sure thing')
+    expect(aiMessage?.notice).toMatch(/couldn't save/i)
+  })
+
+  it('adds no notice when the exchange was saved, or simply had nothing to save', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ reply: 'hi', entriesWritten: 0 }))
+
+    const { result } = await sendMessage('hello')
+
+    expect(result.current.messages[1]?.notice).toBeUndefined()
+  })
 })
