@@ -37,9 +37,9 @@ export async function listProjectArtifacts(projectId: string): Promise<ArtifactB
   })
 }
 
-// Fetches and decodes a single markdown artifact's text content, by filename,
-// within a project. Used only when a /file(name) reference appears in a chat
-// message — not run on every turn.
+// Fetches and decodes a single text artifact's content, by filename, within a
+// project. Used only when a /file(name) reference appears in a chat message —
+// not run on every turn.
 export async function fetchArtifactContentByName(
   projectId: string,
   fileName: string
@@ -58,9 +58,12 @@ export async function fetchArtifactContentByName(
 
   const data = snap.docs[0]!.data()
 
-  // Only markdown content can be meaningfully injected as text right now.
-  // Other file types are listed by name but not read.
-  if (data.contentType !== 'text/markdown') return null
+  // Browsers often send an empty or generic content type for .md files, so
+  // accept any text/* type OR a known text file extension.
+  const isText =
+    (typeof data.contentType === 'string' && data.contentType.startsWith('text/')) ||
+    /\.(md|markdown|txt|csv)$/i.test(String(data.fileName ?? ''))
+  if (!isText) return null
 
   // A slow or failing blob must not hang or fail the whole chat turn: give up and skip the file.
   try {

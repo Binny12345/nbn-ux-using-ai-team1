@@ -10,6 +10,7 @@ import type { Artifact } from '../types'
 // Matches the normalisation in hooks/useChat.ts.
 const rawApiUrl = (process.env.NEXT_PUBLIC_API_URL ?? '').trim().replace(/\/+$/, '')
 const API_BASE = rawApiUrl && !/^https?:\/\//i.test(rawApiUrl) ? `https://${rawApiUrl}` : rawApiUrl
+const POLL_MS = 15_000
 
 // Get a fresh Firebase ID token for the Authorization header.
 async function getToken(): Promise<string> {
@@ -29,9 +30,10 @@ function formatSize(bytes: number): string {
 interface FilesSidebarProps {
   open: boolean
   projectId: string
+  currentUserId: string
   onClose: () => void
-  // Lets the parent keep the Files badge in sync with the loaded list.
-  onArtifactsChange?: (count: number) => void
+  // Called when teammates add files after the first load (never for your own uploads).
+  onNewArtifacts?: (added: Artifact[]) => void
   // Change this to make the sidebar reload (e.g. after /generate creates a file).
   refreshKey?: number
 }
@@ -39,8 +41,9 @@ interface FilesSidebarProps {
 export function FilesSidebar({
   open,
   projectId,
+  currentUserId,
   onClose,
-  onArtifactsChange,
+  onNewArtifacts,
   refreshKey = 0,
 }: FilesSidebarProps) {
   const [artifacts, setArtifacts] = useState<Artifact[]>([])
@@ -48,35 +51,67 @@ export function FilesSidebar({
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // Ids seen so far. null until the first load, which only seeds it (no notifications).
+  const knownIds = useRef<Set<string> | null>(null)
+  const onNewRef = useRef(onNewArtifacts)
 
   const base = `${API_BASE}/api/projects/${projectId}/artifacts`
 
   useEffect(() => {
-    onArtifactsChange?.(artifacts.length)
-  }, [artifacts, onArtifactsChange])
+    onNewRef.current = onNewArtifacts
+  }, [onNewArtifacts])
 
   // ── Load the list ──────────────────────────────────────────────
-  const loadArtifacts = useCallback(async () => {
-    setError(null)
-    try {
-      const token = await getToken()
-      const res = await fetch(base, { headers: { Authorization: `Bearer ${token}` } })
-      if (!res.ok) throw new Error(`Failed to load (${res.status})`)
-      const data = await res.json()
-      setArtifacts(data.artifacts ?? [])
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load files')
-    } finally {
-      setLoading(false)
-    }
-  }, [base])
+  // silent = background poll: don't touch the error banner.
+  const loadArtifacts = useCallback(
+    async (silent = false) => {
+      if (!silent) setError(null)
+      try {
+        const token = await getToken()
+        const res = await fetch(base, { headers: { Authorization: `Bearer ${token}` } })
+        if (!res.ok) throw new Error(`Failed to load (${res.status})`)
+        const data = await res.json()
+        const list: Artifact[] = data.artifacts ?? []
+        setArtifacts(list)
 
-  // Loads on page load (so the badge is right before anyone opens the sidebar), again each
-  // time it opens (to pick up files teammates added), and whenever refreshKey changes.
+        // Work out which files are new since the last load.
+        const known = knownIds.current
+        if (known === null) {
+          knownIds.current = new Set(list.map((a) => a.id))
+        } else {
+          const added = list.filter((a) => !known.has(a.id))
+          for (const a of added) known.add(a.id)
+          const fromTeammates = added.filter((a) => a.uploadedBy !== currentUserId)
+          if (fromTeammates.length > 0) onNewRef.current?.(fromTeammates)
+        }
+      } catch (err) {
+        if (!silent) setError(err instanceof Error ? err.message : 'Failed to load files')
+      } finally {
+        setLoading(false)
+      }
+    },
+    [base, currentUserId]
+  )
+
+  // Loads on page load, each time the sidebar opens, and whenever refreshKey changes.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadArtifacts()
   }, [loadArtifacts, open, refreshKey])
+
+  // Background poll so teammates' uploads show up without anyone opening the panel.
+  // Pauses while the tab is hidden and catches up as soon as it is visible again.
+  useEffect(() => {
+    const poll = () => {
+      if (document.visibilityState === 'visible') void loadArtifacts(true)
+    }
+    const timer = setInterval(poll, POLL_MS)
+    document.addEventListener('visibilitychange', poll)
+    return () => {
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', poll)
+    }
+  }, [loadArtifacts])
 
   // ── Upload ─────────────────────────────────────────────────────
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
