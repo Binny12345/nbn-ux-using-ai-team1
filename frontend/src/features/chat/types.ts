@@ -1,3 +1,5 @@
+export type ArtifactRef = Pick<Artifact, 'id' | 'fileName' | 'contentType' | 'size'>
+
 export interface ChatMessage {
   id: string
   sender: 'user' | 'ai'
@@ -6,6 +8,8 @@ export interface ChatMessage {
   failed?: boolean
   // Shown under the message, e.g. when this exchange could not be saved to the shared context.
   notice?: string
+  // Set on the AI's confirmation after /generate, so the chat can offer "View document".
+  artifact?: ArtifactRef
 }
 
 export interface ContextEntry {

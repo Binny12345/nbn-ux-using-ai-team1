@@ -1,4 +1,6 @@
-import type { ChatMessage } from '../types'
+import { FileText } from 'lucide-react'
+import { MarkdownContent } from './MarkdownContent'
+import type { ArtifactRef, ChatMessage } from '../types'
 
 function initials(name: string) {
   return name
@@ -12,11 +14,14 @@ function initials(name: string) {
 export function MessageBubble({
   message,
   currentUserName,
+  onViewFile,
 }: {
   message: ChatMessage
   currentUserName: string
+  onViewFile?: (file: ArtifactRef) => void
 }) {
   const isUser = message.sender === 'user'
+  const artifact = message.artifact
 
   return (
     <div className={`flex gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
@@ -29,15 +34,32 @@ export function MessageBubble({
       >
         {isUser ? initials(currentUserName) : 'AI'}
       </div>
-      <div className={`flex max-w-[75%] flex-col gap-1 ${isUser ? 'items-end' : 'items-start'}`}>
+      <div
+        className={`flex max-w-[75%] min-w-0 flex-col gap-1 ${isUser ? 'items-end' : 'items-start'}`}
+      >
         <div
-          className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+          className={`max-w-full rounded-2xl px-4 py-3 text-sm leading-relaxed ${
             isUser
               ? 'bg-marketing-primary rounded-br-[4px] text-white'
               : 'border-marketing-border bg-marketing-card text-marketing-fg rounded-bl-[4px] border-[1.5px] shadow-[0_1px_6px_rgba(26,108,255,0.06)]'
           }`}
         >
-          {message.content}
+          {isUser ? (
+            // User text stays plain: someone typing * or # shouldn't get surprise formatting.
+            <p className="break-words whitespace-pre-wrap">{message.content}</p>
+          ) : (
+            <MarkdownContent content={message.content} />
+          )}
+          {artifact && onViewFile && (
+            <button
+              type="button"
+              onClick={() => onViewFile(artifact)}
+              className="border-marketing-border-hover bg-marketing-bg text-marketing-primary hover:border-marketing-primary mt-3 flex items-center gap-1.5 rounded-lg border-[1.5px] px-3 py-1.5 text-xs font-semibold transition-colors"
+            >
+              <FileText className="h-3.5 w-3.5" />
+              View document
+            </button>
+          )}
         </div>
         {message.notice && (
           <span role="status" className="text-marketing-warning text-xs">

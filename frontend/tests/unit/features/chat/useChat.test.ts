@@ -70,9 +70,10 @@ describe('useChat', () => {
     expect(url).toBe('https://api.test/api/projects/p1/artifacts/generate')
     expect(body).toEqual({ prompt: 'login page requirements' })
     expect(returned).toEqual({
-      reply: 'Created "login-page.md". Open Files to view or download it.',
+      reply: 'Created `login-page.md`. You can also find it in Files.',
       entriesWritten: 0,
       artifactCreated: true,
+      artifact: { id: 'a1', fileName: 'login-page.md' },
     })
     expect(result.current.messages.map((m) => m.sender)).toEqual(['user', 'ai'])
     expect(result.current.messages[1]?.content).toContain('login-page.md')

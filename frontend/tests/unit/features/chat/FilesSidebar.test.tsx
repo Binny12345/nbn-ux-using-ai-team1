@@ -24,7 +24,9 @@ function listOf(...artifacts: object[]) {
 const base = { contentType: 'text/markdown', size: 2048 }
 
 function renderSidebar(props: Partial<React.ComponentProps<typeof FilesSidebar>> = {}) {
-  return render(<FilesSidebar open projectId="p1" onClose={() => undefined} {...props} />)
+  return render(
+    <FilesSidebar open projectId="p1" currentUserId="me" onClose={() => undefined} {...props} />
+  )
 }
 
 beforeEach(() => {
@@ -101,17 +103,17 @@ describe('FilesSidebar', () => {
     expect(await screen.findByText('No files yet.')).toBeInTheDocument()
   })
 
-  it('loads the list with the bearer token even while closed, so the badge is right on page load', async () => {
+  it('loads the list with the bearer token even while closed', async () => {
     listOf({ ...base, id: 'a1', fileName: 'a.md', uploadedBy: 'u1', role: 'BA', source: 'ai' })
-    const onArtifactsChange = vi.fn()
 
-    renderSidebar({ open: false, onArtifactsChange })
+    renderSidebar({ open: false })
 
-    await waitFor(() => expect(onArtifactsChange).toHaveBeenLastCalledWith(1))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
     expect(fetchMock.mock.calls[0]?.[0]).toBe('https://api.test/api/projects/p1/artifacts')
     expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
       headers: { Authorization: 'Bearer id-token' },
     })
+    expect(await screen.findByText('a.md')).toBeInTheDocument()
   })
 
   it('keeps the closed sidebar out of the tab order', async () => {
@@ -128,10 +130,26 @@ describe('FilesSidebar', () => {
     const { rerender } = renderSidebar({ open: false, refreshKey: 0 })
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
 
-    rerender(<FilesSidebar open projectId="p1" onClose={() => undefined} refreshKey={0} />)
+    rerender(
+      <FilesSidebar
+        open
+        projectId="p1"
+        currentUserId="me"
+        onClose={() => undefined}
+        refreshKey={0}
+      />
+    )
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
 
-    rerender(<FilesSidebar open projectId="p1" onClose={() => undefined} refreshKey={1} />)
+    rerender(
+      <FilesSidebar
+        open
+        projectId="p1"
+        currentUserId="me"
+        onClose={() => undefined}
+        refreshKey={1}
+      />
+    )
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3))
   })
 
