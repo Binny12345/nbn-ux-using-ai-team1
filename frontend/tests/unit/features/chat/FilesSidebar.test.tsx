@@ -50,7 +50,7 @@ describe('FilesSidebar', () => {
 
     expect(await screen.findByText('login-page_(2).md')).toBeInTheDocument()
     expect(screen.getByText('AI')).toBeInTheDocument()
-    expect(screen.getByText(/Alice \(BA\)/)).toBeInTheDocument()
+    expect(screen.getByText(/Alice \(Business Analyst\)/)).toBeInTheDocument()
   })
 
   it('does not mark uploaded files, including older ones with no source', async () => {
@@ -94,7 +94,7 @@ describe('FilesSidebar', () => {
 
     renderSidebar()
 
-    expect(await screen.findByText(/Teammate \(PM\)/)).toBeInTheDocument()
+    expect(await screen.findByText(/Teammate \(Project Manager\)/)).toBeInTheDocument()
   })
 
   it('shows an empty state when the project has no files', async () => {

@@ -34,12 +34,25 @@ const GENERATE_USAGE =
   'Usage: /generate <what you want written>, e.g. /generate login page requirements'
 
 export function useChat(projectId: string) {
-  // One id per mount; the backend stores it as sourceChatId on extracted context.
-  const [sessionId] = useState(() => crypto.randomUUID())
+  // The backend stores this as sourceChatId on extracted context. New on mount and on "new session".
+  const [sessionId, setSessionId] = useState(() => crypto.randomUUID())
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isSending, setIsSending] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Load a previously saved conversation ("Continue session").
+  const restore = useCallback((saved: ChatMessage[]) => {
+    setMessages(saved)
+    setError(null)
+  }, [])
+
+  // Start from a blank conversation with a fresh session id ("Start new session").
+  const startNew = useCallback(() => {
+    setMessages([])
+    setError(null)
+    setSessionId(crypto.randomUUID())
+  }, [])
 
   const send = useCallback(
     async (content: string): Promise<ChatResponse | null> => {
@@ -142,5 +155,5 @@ export function useChat(projectId: string) {
     [projectId, sessionId, isSending]
   )
 
-  return { messages, isSending, isGenerating, error, send }
+  return { messages, isSending, isGenerating, error, send, sessionId, restore, startNew }
 }

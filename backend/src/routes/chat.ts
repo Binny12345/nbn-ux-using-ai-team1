@@ -95,4 +95,40 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
   }
 })
 
+const contextEntrySchema = z
+  .object({
+    projectId: z.string().min(1, 'projectId is required'),
+    sessionId: z.string().min(1, 'sessionId is required'),
+    content: z.string().trim().min(1, 'content is required').max(2000, 'content is too long'),
+  })
+  .strict()
+
+// Saves text the user highlighted in an AI reply as a shared-context note.
+router.post('/context', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { user } = req as AuthenticatedRequest
+
+    const parsed = contextEntrySchema.safeParse(req.body)
+    if (!parsed.success) {
+      return next(HttpError.badRequest(parsed.error.errors[0]?.message ?? 'Invalid input'))
+    }
+    const { projectId, sessionId, content } = parsed.data
+
+    // Throws not-found if the user isn't a member of the project.
+    const briefing = await buildProjectBriefing(projectId, user.uid)
+    if (briefing.status === 'archived') {
+      return next(
+        HttpError.badRequest('This project is archived and no longer accepts new messages')
+      )
+    }
+
+    const entriesWritten = await persistContext(projectId, user.uid, sessionId, [
+      { content, type: 'note' },
+    ])
+    res.status(201).json({ entriesWritten })
+  } catch (err) {
+    next(err)
+  }
+})
+
 export { router as chatRouter }

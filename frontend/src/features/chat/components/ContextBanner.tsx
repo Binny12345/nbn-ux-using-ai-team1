@@ -1,27 +1,30 @@
 'use client'
 
 import type { ContextEntry } from '../types'
+import { roleLabel } from '../lib/roleLabels'
 
 export function ContextBanner({ entries }: { entries: ContextEntry[] }) {
   return (
-    <div className="mx-auto mb-4 max-w-md rounded-md border border-zinc-800 bg-white px-4 py-3 text-sm text-zinc-600">
+    <div className="border-marketing-border bg-marketing-card text-marketing-fg mx-auto mb-4 w-full max-w-md rounded-2xl border-[1.5px] px-4 py-3 text-sm">
       {entries.length > 0 ? (
         <>
-          <p className="mb-2 font-medium text-zinc-700">Shared context for this project</p>
-          <ul className="max-h-48 space-y-2 overflow-y-auto">
+          <p className="text-marketing-fg mb-2 font-semibold">Shared context for this project</p>
+          <ul className="context-scroll max-h-48 space-y-3 pr-2">
             {entries.map((entry) => (
               <li key={entry.id}>
-                <p className="text-xs text-zinc-500">
+                <p className="text-marketing-fg text-xs font-bold">
                   {entry.contributorName ?? 'Teammate'}
-                  {entry.role ? ` · ${entry.role}` : ''} · {entry.type}
+                  {entry.role ? ` · ${roleLabel(entry.role)}` : ''} · {entry.type}
                 </p>
-                <p>{entry.content}</p>
+                <p className="text-marketing-fg mt-0.5">{entry.content}</p>
               </li>
             ))}
           </ul>
         </>
       ) : (
-        <p>No shared context yet. Contributions from you and your teammates will appear here.</p>
+        <p className="text-marketing-muted">
+          No shared context yet. Contributions from you and your teammates will appear here.
+        </p>
       )}
     </div>
   )

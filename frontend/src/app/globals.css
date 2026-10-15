@@ -68,6 +68,24 @@
   animation: typing-bounce 1s ease-in-out infinite;
 }
 
+/* Shared-context list: scrollbar that is always visible, even with macOS overlay scrollbars. */
+.context-scroll {
+  overflow-y: scroll;
+  scrollbar-width: thin;
+  scrollbar-color: #8a8a8a #eef2fb;
+}
+.context-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+.context-scroll::-webkit-scrollbar-track {
+  background: #eef2fb;
+  border-radius: 9999px;
+}
+.context-scroll::-webkit-scrollbar-thumb {
+  background: #8a8a8a;
+  border-radius: 9999px;
+}
+
 /* Respect users who ask for less motion: show static dots instead. */
 @media (prefers-reduced-motion: reduce) {
   .typing-dot {
