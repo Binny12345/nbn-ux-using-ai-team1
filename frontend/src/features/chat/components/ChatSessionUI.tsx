@@ -11,6 +11,7 @@ import { InviteModal } from './InviteModal'
 import { EditDescriptionModal } from './EditDescriptionModal'
 import { FeedToast, type FeedToastData } from './FeedToast'
 import { FilePreviewModal } from './FilePreviewModal'
+import { TypingIndicator } from './TypingIndicator'
 import { useChat } from '../hooks/useChat'
 import type {
   Artifact,
@@ -152,16 +153,7 @@ export function ChatSessionUI({ project, currentUser, contextEntries }: ChatSess
               />
             ))}
 
-            {isSending && (
-              <div className="flex gap-3">
-                <div className="from-marketing-primary to-marketing-primary-dark flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-xs font-bold text-white">
-                  AI
-                </div>
-                <div className="border-marketing-border bg-marketing-card text-marketing-muted-light rounded-2xl rounded-bl-[4px] border-[1.5px] px-4 py-3 text-sm">
-                  {isGenerating ? 'Generating document…' : 'Thinking…'}
-                </div>
-              </div>
-            )}
+            {isSending && <TypingIndicator label={isGenerating ? 'Generating document…' : undefined} />}
 
             {error && (
               <p role="alert" className="text-marketing-error text-sm">
