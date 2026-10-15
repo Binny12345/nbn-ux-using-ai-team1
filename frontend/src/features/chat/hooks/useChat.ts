@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from 'react'
 import { getClientAuth } from '@/lib/firebase/client'
-import type { ChatMessage } from '../types'
+import type { ArtifactRef, ChatMessage } from '../types'
 
 // Base URL of the separately deployed Express backend. A value without a scheme would be
 // treated by the browser as a path relative to the current page, so default it to https.
@@ -14,6 +14,8 @@ interface ChatResponse {
   entriesWritten: number
   // true when /generate stored a new file
   artifactCreated?: boolean
+  // the file /generate created, so the chat can offer to open it
+  artifact?: ArtifactRef
   // true when the exchange could not be saved to the shared context (the reply is still valid)
   contextSaveFailed?: boolean
 }
@@ -98,11 +100,18 @@ export function useChat(projectId: string) {
 
         let data: ChatResponse
         if (generatePrompt !== null) {
-          const artifact = (await res.json()) as { fileName: string }
+          const created = (await res.json()) as ArtifactRef
           data = {
-            reply: `Created "${artifact.fileName}". Open Files to view or download it.`,
+            // Rendered as markdown, so the file name is wrapped in backticks (inline code).
+            reply: `Created \`${created.fileName}\`. You can also find it in Files.`,
             entriesWritten: 0,
             artifactCreated: true,
+            artifact: {
+              id: created.id,
+              fileName: created.fileName,
+              contentType: created.contentType,
+              size: created.size,
+            },
           }
         } else {
           data = (await res.json()) as ChatResponse
@@ -114,6 +123,7 @@ export function useChat(projectId: string) {
             sender: 'ai',
             content: data.reply,
             timestamp: new Date(),
+            ...(data.artifact ? { artifact: data.artifact } : {}),
             ...(data.contextSaveFailed ? { notice: CONTEXT_SAVE_FAILED_NOTICE } : {}),
           },
         ])

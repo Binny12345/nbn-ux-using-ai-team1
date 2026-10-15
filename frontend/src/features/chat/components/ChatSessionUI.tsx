@@ -10,8 +10,15 @@ import { FilesSidebar } from './FilesSidebar'
 import { InviteModal } from './InviteModal'
 import { EditDescriptionModal } from './EditDescriptionModal'
 import { FeedToast, type FeedToastData } from './FeedToast'
+import { FilePreviewModal } from './FilePreviewModal'
 import { useChat } from '../hooks/useChat'
-import type { Artifact, ContextEntry, ProjectSummary, UserProfile } from '../types'
+import type {
+  Artifact,
+  ArtifactRef,
+  ContextEntry,
+  ProjectSummary,
+  UserProfile,
+} from '../types'
 
 // How often the page re-reads the server component so teammates' new context shows up.
 const CONTEXT_POLL_MS = 15_000
@@ -32,6 +39,7 @@ export function ChatSessionUI({ project, currentUser, contextEntries }: ChatSess
   const [filesRefreshKey, setFilesRefreshKey] = useState(0)
   const [showInvite, setShowInvite] = useState(false)
   const [showEditDescription, setShowEditDescription] = useState(false)
+  const [previewFile, setPreviewFile] = useState<ArtifactRef | null>(null)
   const [toast, setToast] = useState<FeedToastData | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const sidebarOpenRef = useRef(false)
@@ -140,6 +148,7 @@ export function ChatSessionUI({ project, currentUser, contextEntries }: ChatSess
                 key={message.id}
                 message={message}
                 currentUserName={currentUser.name}
+                onViewFile={setPreviewFile}
               />
             ))}
 
@@ -172,6 +181,7 @@ export function ChatSessionUI({ project, currentUser, contextEntries }: ChatSess
         refreshKey={filesRefreshKey}
         onClose={() => setSidebarOpen(false)}
         onNewArtifacts={handleNewArtifacts}
+        onPreview={setPreviewFile}
       />
       <FeedToast
         toast={toast}
@@ -181,6 +191,14 @@ export function ChatSessionUI({ project, currentUser, contextEntries }: ChatSess
           openFiles()
         }}
       />
+      {previewFile && (
+        <FilePreviewModal
+          key={previewFile.id}
+          projectId={project.id}
+          file={previewFile}
+          onClose={() => setPreviewFile(null)}
+        />
+      )}
       {showInvite && <InviteModal projectId={project.id} onClose={() => setShowInvite(false)} />}
       {showEditDescription && (
         <EditDescriptionModal
