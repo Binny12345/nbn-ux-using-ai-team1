@@ -1,6 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react'
 import { useRouter } from 'next/navigation'
 import { ChatTopBar } from './ChatTopBar'
 import { ContextBanner } from './ContextBanner'
@@ -12,7 +19,11 @@ import { EditDescriptionModal } from './EditDescriptionModal'
 import { FeedToast, type FeedToastData } from './FeedToast'
 import { FilePreviewModal } from './FilePreviewModal'
 import { TypingIndicator } from './TypingIndicator'
+import { WelcomeBackDialog } from './WelcomeBackDialog'
 import { useChat } from '../hooks/useChat'
+import { addContextEntry } from '../lib/contextApi'
+import { clearHistory, parseHistory, readStoredHistory, writeHistory } from '../lib/chatHistory'
+import { roleLabel } from '../lib/roleLabels'
 import type {
   Artifact,
   ArtifactRef,
@@ -24,6 +35,8 @@ import type {
 // How often the page re-reads the server component so teammates' new context shows up.
 const CONTEXT_POLL_MS = 15_000
 
+const noopSubscribe = () => () => {}
+
 interface ChatSessionUIProps {
   project: ProjectSummary
   currentUser: UserProfile
@@ -32,7 +45,8 @@ interface ChatSessionUIProps {
 
 export function ChatSessionUI({ project, currentUser, contextEntries }: ChatSessionUIProps) {
   const router = useRouter()
-  const { messages, isSending, isGenerating, error, send } = useChat(project.id)
+  const { messages, isSending, isGenerating, error, send, sessionId, restore, startNew } =
+    useChat(project.id)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   // Files teammates added since the sidebar was last opened (drives the red badge).
   const [unreadCount, setUnreadCount] = useState(0)
@@ -46,6 +60,28 @@ export function ChatSessionUI({ project, currentUser, contextEntries }: ChatSess
   const sidebarOpenRef = useRef(false)
   // null until the first render, which only seeds it (no notifications for existing entries).
   const seenContextIds = useRef<Set<string> | null>(null)
+
+  // ── Saved conversation ("Welcome back") ────────────────────────────────────
+  // Read from localStorage after hydration (null on the server), so there is no mismatch.
+  const storedHistory = useSyncExternalStore(
+    noopSubscribe,
+    () => readStoredHistory(project.id, currentUser.uid),
+    () => null
+  )
+  const saved = useMemo(() => parseHistory(storedHistory), [storedHistory])
+  const [welcomeDismissed, setWelcomeDismissed] = useState(false)
+  // Only before anything has been said in this visit, so it can't pop up mid-chat.
+  const showWelcome = !welcomeDismissed && messages.length === 0 && saved.length > 0
+  const lastTopic = useMemo(
+    () => [...saved].reverse().find((m) => m.sender === 'user')?.content ?? null,
+    [saved]
+  )
+
+  // Keep the saved copy current. Never runs on an empty chat, so the welcome prompt's
+  // saved history can't be overwritten before the user chooses.
+  useEffect(() => {
+    if (messages.length > 0) writeHistory(project.id, currentUser.uid, messages)
+  }, [messages, project.id, currentUser.uid])
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
@@ -74,7 +110,7 @@ export function ChatSessionUI({ project, currentUser, contextEntries }: ChatSess
       if (added.length === 1) {
         const file = added[0]!
         const who = file.uploadedByName ?? 'A teammate'
-        const role = file.role ? ` (${file.role})` : ''
+        const role = file.role ? ` (${roleLabel(file.role)})` : ''
         const verb = file.source === 'ai' ? 'generated' : 'uploaded'
         showToast('New file shared', `${who}${role} ${verb} ${file.fileName} in the project.`)
       } else {
@@ -110,7 +146,7 @@ export function ChatSessionUI({ project, currentUser, contextEntries }: ChatSess
     if (fromTeammates.length === 1) {
       const entry = fromTeammates[0]!
       const who = entry.contributorName ?? 'A teammate'
-      const role = entry.role ? ` (${entry.role})` : ''
+      const role = entry.role ? ` (${roleLabel(entry.role)})` : ''
       showToast('New contribution', `${who}${role} added a ${entry.type} to the project context.`)
     } else {
       showToast(
@@ -126,6 +162,15 @@ export function ChatSessionUI({ project, currentUser, contextEntries }: ChatSess
     if (result && result.entriesWritten > 0) router.refresh()
     if (result?.artifactCreated) setFilesRefreshKey((k) => k + 1)
   }
+
+  // Highlighted text from an AI reply -> shared context.
+  const handleUploadToContext = useCallback(
+    async (text: string) => {
+      await addContextEntry(project.id, sessionId, text)
+      router.refresh()
+    },
+    [project.id, sessionId, router]
+  )
 
   return (
     <div className="bg-marketing-bg relative flex h-screen flex-col overflow-hidden">
@@ -150,10 +195,13 @@ export function ChatSessionUI({ project, currentUser, contextEntries }: ChatSess
                 message={message}
                 currentUserName={currentUser.name}
                 onViewFile={setPreviewFile}
+                onUploadToContext={handleUploadToContext}
               />
             ))}
 
-            {isSending && <TypingIndicator label={isGenerating ? 'Generating document…' : undefined} />}
+            {isSending && (
+              <TypingIndicator label={isGenerating ? 'Generating document…' : undefined} />
+            )}
 
             {error && (
               <p role="alert" className="text-marketing-error text-sm">
@@ -198,6 +246,23 @@ export function ChatSessionUI({ project, currentUser, contextEntries }: ChatSess
           currentDescription={project.description}
           onClose={() => setShowEditDescription(false)}
           onSaved={() => router.refresh()}
+        />
+      )}
+      {showWelcome && (
+        <WelcomeBackDialog
+          userName={currentUser.name}
+          projectName={project.name}
+          lastActivity={saved[saved.length - 1]!.timestamp}
+          lastTopic={lastTopic}
+          onContinue={() => {
+            restore(saved)
+            setWelcomeDismissed(true)
+          }}
+          onStartNew={() => {
+            clearHistory(project.id, currentUser.uid)
+            startNew()
+            setWelcomeDismissed(true)
+          }}
         />
       )}
     </div>

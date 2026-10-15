@@ -5,6 +5,7 @@ import { X, FileText, Upload, Download, Trash2 } from 'lucide-react'
 import { getClientAuth } from '@/lib/firebase/client'
 import type { Artifact } from '../types'
 import { previewKind } from '../lib/artifactApi'
+import { roleLabel } from '../lib/roleLabels'
 
 // Base URL of the separately deployed Express backend. A value without a scheme would be
 // treated by the browser as a path relative to the current page, so default it to https.
@@ -257,9 +258,9 @@ export function FilesSidebar({
                           </span>
                         )}
                       </span>
-                      <span className="text-marketing-muted-light mt-0.5 text-xs">
+                      <span className="text-marketing-muted mt-0.5 text-xs">
                         {formatSize(file.size)} · {file.uploadedByName ?? 'Teammate'}
-                        {file.role ? ` (${file.role})` : ''}
+                        {file.role ? ` (${roleLabel(file.role)})` : ''}
                       </span>
                     </span>
                   </button>
