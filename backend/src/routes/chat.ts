@@ -44,7 +44,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
     // the project is, and the shared context contributed so far.
     const briefing = await buildProjectBriefing(projectId, user.uid)
 
-    //Checks if project is archived
+    // Checks if project is archived
     if (briefing.status === 'archived') {
       return next(
         HttpError.badRequest('This project is archived and no longer accepts new messages')
@@ -60,7 +60,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
       if (content !== null) fileContents.push({ fileName: name, content })
     }
 
-    // Generate the reply from that briefing (plus any /file(name) contents).
+    // Generate the reply from that briefing, including any referenced file content.
     const reply = await generateReply(briefing, message, fileContents)
 
     // Write side: pull durable entries from the exchange and persist them, attributed.

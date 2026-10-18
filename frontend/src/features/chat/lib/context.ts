@@ -36,5 +36,6 @@ export async function getProjectContext(projectId: string): Promise<ContextEntry
     type: (d.get('type') as string | undefined) ?? 'note',
     role: (d.get('role') as string | undefined) ?? '',
     contributorName: names.get(d.get('contributedBy') as string) ?? null,
+    contributedBy: d.get('contributedBy') as string,
   }))
 }

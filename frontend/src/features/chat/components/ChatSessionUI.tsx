@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChatTopBar } from './ChatTopBar'
 import { ContextBanner } from './ContextBanner'
@@ -9,8 +9,12 @@ import { ChatInput } from './ChatInput'
 import { FilesSidebar } from './FilesSidebar'
 import { InviteModal } from './InviteModal'
 import { EditDescriptionModal } from './EditDescriptionModal'
+import { FeedToast, type FeedToastData } from './FeedToast'
 import { useChat } from '../hooks/useChat'
-import type { ContextEntry, ProjectSummary, UserProfile } from '../types'
+import type { Artifact, ContextEntry, ProjectSummary, UserProfile } from '../types'
+
+// How often the page re-reads the server component so teammates' new context shows up.
+const CONTEXT_POLL_MS = 15_000
 
 interface ChatSessionUIProps {
   project: ProjectSummary
@@ -22,16 +26,90 @@ export function ChatSessionUI({ project, currentUser, contextEntries }: ChatSess
   const router = useRouter()
   const { messages, isSending, isGenerating, error, send } = useChat(project.id)
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [fileCount, setFileCount] = useState(0)
-  // Bumped when /generate creates a file, so the sidebar reloads and the badge updates.
+  // Files teammates added since the sidebar was last opened (drives the red badge).
+  const [unreadCount, setUnreadCount] = useState(0)
+  // Bumped when /generate creates a file, so the sidebar reloads.
   const [filesRefreshKey, setFilesRefreshKey] = useState(0)
   const [showInvite, setShowInvite] = useState(false)
   const [showEditDescription, setShowEditDescription] = useState(false)
+  const [toast, setToast] = useState<FeedToastData | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const sidebarOpenRef = useRef(false)
+  // null until the first render, which only seeds it (no notifications for existing entries).
+  const seenContextIds = useRef<Set<string> | null>(null)
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
   }, [messages, isSending])
+
+  useEffect(() => {
+    sidebarOpenRef.current = sidebarOpen
+  }, [sidebarOpen])
+
+  const showToast = useCallback((title: string, message: string) => {
+    setToast({ id: Date.now(), title, message })
+  }, [])
+
+  const dismissToast = useCallback(() => setToast(null), [])
+
+  const openFiles = useCallback(() => {
+    setSidebarOpen(true)
+    setUnreadCount(0)
+  }, [])
+
+  // ── New files from teammates (reported by FilesSidebar's poll) ─────────────
+  const handleNewArtifacts = useCallback(
+    (added: Artifact[]) => {
+      if (!sidebarOpenRef.current) setUnreadCount((c) => c + added.length)
+
+      if (added.length === 1) {
+        const file = added[0]!
+        const who = file.uploadedByName ?? 'A teammate'
+        const role = file.role ? ` (${file.role})` : ''
+        const verb = file.source === 'ai' ? 'generated' : 'uploaded'
+        showToast('New file shared', `${who}${role} ${verb} ${file.fileName} in the project.`)
+      } else {
+        showToast('New files shared', `${added.length} new files were added to the project.`)
+      }
+    },
+    [showToast]
+  )
+
+  // ── New contributions from teammates ───────────────────────────────────────
+  // Re-render the server component on an interval so new context entries arrive...
+  useEffect(() => {
+    const poll = () => {
+      if (document.visibilityState === 'visible') router.refresh()
+    }
+    const timer = setInterval(poll, CONTEXT_POLL_MS)
+    return () => clearInterval(timer)
+  }, [router])
+
+  // ...and toast when entries appear that someone else contributed.
+  useEffect(() => {
+    if (seenContextIds.current === null) {
+      seenContextIds.current = new Set(contextEntries.map((e) => e.id))
+      return
+    }
+    const seen = seenContextIds.current
+    const added = contextEntries.filter((e) => !seen.has(e.id))
+    for (const entry of added) seen.add(entry.id)
+
+    const fromTeammates = added.filter((e) => e.contributedBy !== currentUser.uid)
+    if (fromTeammates.length === 0) return
+
+    if (fromTeammates.length === 1) {
+      const entry = fromTeammates[0]!
+      const who = entry.contributorName ?? 'A teammate'
+      const role = entry.role ? ` (${entry.role})` : ''
+      showToast('New contribution', `${who}${role} added a ${entry.type} to the project context.`)
+    } else {
+      showToast(
+        'New contributions',
+        `${fromTeammates.length} new entries were added to the project context.`
+      )
+    }
+  }, [contextEntries, currentUser.uid, showToast])
 
   const handleSend = async (content: string) => {
     const result = await send(content)
@@ -45,9 +123,9 @@ export function ChatSessionUI({ project, currentUser, contextEntries }: ChatSess
       <ChatTopBar
         project={project}
         currentUser={currentUser}
-        fileCount={fileCount}
+        unreadCount={unreadCount}
         isPM={currentUser.role === 'PM'}
-        onOpenFiles={() => setSidebarOpen(true)}
+        onOpenFiles={openFiles}
         onOpenInvite={() => setShowInvite(true)}
         onEditDescription={() => setShowEditDescription(true)}
       />
@@ -90,9 +168,18 @@ export function ChatSessionUI({ project, currentUser, contextEntries }: ChatSess
       <FilesSidebar
         open={sidebarOpen}
         projectId={project.id}
+        currentUserId={currentUser.uid}
         refreshKey={filesRefreshKey}
         onClose={() => setSidebarOpen(false)}
-        onArtifactsChange={setFileCount}
+        onNewArtifacts={handleNewArtifacts}
+      />
+      <FeedToast
+        toast={toast}
+        onDismiss={dismissToast}
+        onClick={() => {
+          dismissToast()
+          openFiles()
+        }}
       />
       {showInvite && <InviteModal projectId={project.id} onClose={() => setShowInvite(false)} />}
       {showEditDescription && (

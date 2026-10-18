@@ -35,7 +35,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
         description: projectData?.description ?? '',
         updatedAt: projectData?.updatedAt?.toDate?.() ?? null,
       }}
-      currentUser={{ name: displayName, role: role!, email: session.email ?? null }}
+      currentUser={{ uid: session.uid, name: displayName, role: role!, email: session.email ?? null }}
       contextEntries={contextEntries}
     />
   )

@@ -14,6 +14,7 @@ export interface ContextEntry {
   type: string
   role: string
   contributorName: string | null
+  contributedBy: string
 }
 
 // As returned by GET /api/projects/:id/artifacts.
@@ -36,6 +37,7 @@ export interface ProjectSummary {
 }
 
 export interface UserProfile {
+  uid: string
   name: string
   role: string
   email?: string | null
