@@ -11,21 +11,28 @@
 | | |
 |-|-|
 | **Frontend** | Next.js 16 (App Router) · React 19 · TypeScript 5 · Tailwind v4 |
-| **Backend** | Firebase Cloud Functions v2 · Express (single "fat lambda") |
+| **Backend** | Express 5 (single "fat lambda"), deployed as its own Vercel project · OpenRouter for the AI · Vercel Blob for files |
 | **Database / Auth** | Firestore · Firebase Authentication (free Spark plan) |
 | **Package manager** | pnpm workspaces — always `pnpm`, never `npm`/`yarn` |
 | **Testing** | Vitest · Testing Library · supertest |
 | **Quality gates** | Lefthook (Conventional Commits, lint, format) · GitHub Actions CI |
 
-There's no local emulator and no Docker — the app always talks to a real (free) Firebase project. Firebase Cloud Storage isn't used either, since real usage requires the paid Blaze plan; store file metadata in Firestore or use a free third-party host if a feature needs uploads.
+There's no local emulator and no Docker — the app always talks to a real (free) Firebase project. Firebase Cloud Storage isn't used either, since real usage requires the paid Blaze plan; uploaded files live in Vercel Blob and their metadata in Firestore.
 
 ## Quick Start
 
 ### 0. Prerequisites
 
-- **Node.js 22** — [nodejs.org](https://nodejs.org)
-- **pnpm** — `npm install -g pnpm`
-- No Firebase CLI install needed — `npx firebase-tools` runs it on demand for rule deploys
+> Exact versions, every account, and the full tested walkthrough: **[docs/SETUP.md](docs/SETUP.md)**.
+
+| Tool | Version |
+|------|---------|
+| **Node.js** | **22.23.3** (22.x; 24.6.0 also tested). **Node 20 does not work.** — [nodejs.org](https://nodejs.org) |
+| **pnpm** | **10.28.0** (11.18.0 also tested) — `npm install -g pnpm@10.28.0`. A bare `npm install -g pnpm` installs the wrong major. |
+| **Git** | 2.39.5 (tested) |
+| Firebase CLI | Not installed — run on demand with `npx firebase-tools@15.34.0` (only for deploying Firestore rules) |
+
+Accounts (free tiers): **GitHub**, **Google/Firebase** (Spark plan), **OpenRouter** (API key for the AI), **Vercel** (hosting + Blob storage), and an **email inbox** that can receive the sign-up verification email.
 
 ### 1. Bootstrap
 
@@ -62,11 +69,15 @@ Full variable reference: [docs/ENV-VARS.md](docs/ENV-VARS.md).
 
 ### 3. Run
 
+The app is **two servers**; chat, files and `/generate` need both. Use two terminals:
+
 ```bash
-pnpm run dev
+pnpm run dev                                # 1: frontend → http://localhost:3000
+pnpm --filter backend build                 # 2: backend (compiled first; rebuild after backend edits)
+pnpm --filter backend run serve:local       #    → http://localhost:5099
 ```
 
-- App → [http://localhost:3000](http://localhost:3000)
+In `.env`: `NEXT_PUBLIC_API_URL=http://localhost:5099` and `CORS_ORIGIN=http://localhost:3000` (use the port Next actually printed — if 3000 is busy it moves to 3001). Also set `OPENROUTER_API_KEY`, and `BLOB_READ_WRITE_TOKEN` for file uploads — see [docs/SETUP.md](docs/SETUP.md).
 
 Restart the dev server after changing `.env` — `NEXT_PUBLIC_*` variables are baked in at startup.
 
