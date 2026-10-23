@@ -1,64 +1,80 @@
-# Garage Boilerplate
+# NBN UX Design Practices Using AI
 
-> Streamlined Next.js + Firebase monorepo for student capstone projects — batteries included, beginner friendly, free-tier only.
+A shared project workspace where a team (Project Manager, Business Analyst, UX Designer, Developer) chats with an AI assistant that remembers what the team has decided. Decisions, requirements and notes from every chat are saved as attributed **shared context**, and uploaded files and AI-generated documents are available to the whole project.
 
-**New here? Read the [step-by-step guide](docs/GUIDE.md)** — it walks you from clone to shipping your first feature. The system diagrams are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Built by RMIT Capstone Team 21 for NBN. Handed over as **`v1.0-handover`**.
 
-**Note for the PR** if you cannot merge your pr is because there is a high veulnerability and the system doesn't allow for pr with high vulnerabilities to be merged. Instructions are below to fix this.
+## Handover documentation
+
+The full documentation is in the **Handover Document**: `https://rmiteduau.sharepoint.com/:w:/r/sites/CapstoneProgrammingProject2026-21-NBN-UXDesignPracticesUsingAITeam1/Shared%20Documents/Client%20Project%20-%20NBN/Final%20Presentation%20+%20Handover/21%20-%20NBN%20UX%20Design%20Practices%20Using%20AI%20-%20handover.docx?d=wd1708fbed41845f6ab85023a5410d041&csf=1&web=1&e=5zFDvO`
+
+| You want to... | Go to |
+|---|---|
+| Set the project up from scratch (accounts, env vars, local run) | **Section 9.1**, Reproducing This Project From Scratch |
+| Understand how the system is built | **Section 5**, Architecture: 5.1 System Context Diagram, 5.2 Architecture Overview, 5.4 Key Technical Decisions |
+| Deploy and operate it | **Section 9.2**, Deployment & Operations |
+| See known issues and technical debt | **Section 9.4**, Known Issues & Technical Debt |
+
+This README is the quick start. If it disagrees with the Handover Document, the Handover Document wins.
+
+## Release
+
+| | |
+|---|---|
+| Tag | `v1.0-handover` |
+| Production | `https://nbn-ux-using-ai-team1-backend.vercel.app/` |
+
 
 ## Stack
 
 | | |
 |-|-|
-| **Frontend** | Next.js 16 (App Router) · React 19 · TypeScript 5 · Tailwind v4 |
-| **Backend** | Firebase Cloud Functions v2 · Express (single "fat lambda") |
-| **Database / Auth** | Firestore · Firebase Authentication (free Spark plan) |
-| **Package manager** | pnpm workspaces — always `pnpm`, never `npm`/`yarn` |
+| **Frontend** | Next.js 16 (App Router) · React 19 · TypeScript · Tailwind v4 |
+| **Backend** | Express 5 on Node 22, deployed on Vercel (60 s function limit) |
+| **Database / Auth** | Firestore · Firebase Authentication |
+| **AI** | OpenRouter (OpenAI-compatible SDK) with an ordered fallback list of free models |
+| **File storage** | Vercel Blob (private), metadata in Firestore |
+| **Package manager** | pnpm workspaces. Always `pnpm`, never `npm` or `yarn` |
 | **Testing** | Vitest · Testing Library · supertest |
 | **Quality gates** | Lefthook (Conventional Commits, lint, format) · GitHub Actions CI |
 
-There's no local emulator and no Docker — the app always talks to a real (free) Firebase project. Firebase Cloud Storage isn't used either, since real usage requires the paid Blaze plan; store file metadata in Firestore or use a free third-party host if a feature needs uploads.
+There is no local emulator and no Docker. The app always talks to a real Firebase project.
 
-## Quick Start
+## Quick start
+
+For the complete, verified setup (accounts, keys and how to obtain them), use **Handover Document section 9.1**. The short version:
 
 ### 0. Prerequisites
 
-- **Node.js 22** — [nodejs.org](https://nodejs.org)
-- **pnpm** — `npm install -g pnpm`
-- No Firebase CLI install needed — `npx firebase-tools` runs it on demand for rule deploys
+- **Node.js 22**
+- **pnpm**: `npm install -g pnpm`
+- A Firebase project (Authentication and Firestore enabled), an OpenRouter API key and a Vercel Blob read/write token
 
 ### 1. Bootstrap
 
 ```bash
-git clone https://github.com/Binny12345/nbn-ux-using-ai-team1 my-project
-cd my-project
+git clone https://github.com/Binny12345/nbn-ux-using-ai-team1
+cd nbn-ux-using-ai-team1
 pnpm run bootstrap
 ```
 
-> **Easiest path:** open the project in Claude Code and run **`/bootstrap`** — it does everything below, walks you through creating a free Firebase project, handles the common failure modes, and finishes with a verified auth smoke test.
+Bootstrap installs dependencies and creates the root `.env` from `.env.example` if it is missing.
 
-Bootstrap installs dependencies, creates the root `.env` from `.env.example` (only if missing), and generates the per-package env files.
+### 2. Configure environment
 
-### 2. Connect Firebase — one env file
+**All values live in the root `.env`.** `frontend/.env.local` and `backend/.env` are generated from it by `pnpm run env:sync` (this runs automatically before `pnpm run dev`). Never edit the generated files by hand.
 
-**All env values live in the root `.env`.** `frontend/.env.local` and `backend/.env` are generated from it by `pnpm run env:sync` (runs automatically before `pnpm run dev`) — never edit them by hand.
+Key variables (full reference in [docs/ENV-VARS.md](docs/ENV-VARS.md) and Handover Document section 9.1):
 
-Create a project at [console.firebase.google.com](https://console.firebase.google.com) — the free Spark plan is enough, no billing required — then:
+| Variable | Purpose |
+|---|---|
+| `NEXT_PUBLIC_FIREBASE_*` | Firebase web app config (public by design) |
+| `FIREBASE_SERVICE_ACCOUNT_KEY_BASE64` | Base64 service account key for the backend (**secret**) |
+| `OPENROUTER_API_KEY` | AI model access (**secret**) |
+| `BLOB_READ_WRITE_TOKEN` | Vercel Blob file storage (**secret**) |
+| `NEXT_PUBLIC_API_URL` | URL of the backend the frontend calls |
 
-1. Enable **Authentication** (Email/Password + Google) and create a **Firestore** database
-2. Register a **web app** (Project settings → Your apps → Web) and copy each `firebaseConfig` value into the matching `NEXT_PUBLIC_FIREBASE_*` variable in `.env`
-3. Generate a **service account key** (Project settings → Service accounts), base64-encode it, and set `FIREBASE_SERVICE_ACCOUNT_KEY_BASE64` in `.env`:
-   ```bash
-   # macOS (BSD base64 — no -w flag)
-   base64 -i service-account.json | tr -d '\n'
-   # Linux (GNU base64)
-   base64 -w 0 service-account.json
-   # Windows PowerShell (single quotes around the path)
-   [Convert]::ToBase64String([IO.File]::ReadAllBytes('C:\path\to\service-account.json'))
-   ```
-4. Set `NEXT_PUBLIC_FIREBASE_PROJECT_ID` in `.env` and the same id in `.firebaserc` (`projects.default`)
-
-Full variable reference: [docs/ENV-VARS.md](docs/ENV-VARS.md).
+Never commit `.env`, the service account JSON or its base64. Never put a secret in a `NEXT_PUBLIC_*` variable, because those are shipped to the browser.
 
 ### 3. Run
 
@@ -66,54 +82,13 @@ Full variable reference: [docs/ENV-VARS.md](docs/ENV-VARS.md).
 pnpm run dev
 ```
 
-- App → [http://localhost:3000](http://localhost:3000)
-
-Restart the dev server after changing `.env` — `NEXT_PUBLIC_*` variables are baked in at startup.
-
-## Troubleshooting
-
-| Symptom | What to try |
-|--------|-------------|
-| `auth/invalid-api-key` | Fill every `NEXT_PUBLIC_FIREBASE_*` value in the root `.env`, run `pnpm run env:sync`, then restart the dev server. |
-| "Firebase web config is incomplete" on Vercel | A `NEXT_PUBLIC_FIREBASE_*` env var is missing in Vercel. Add it under Project Settings → Environment Variables (same names as your local `.env`), then redeploy — existing deployments don't pick up new env vars automatically. See [docs/CI-CD.md § Vercel Setup](docs/CI-CD.md#vercel-setup-frontend). |
-| `Invalid project id: REPLACE_WITH_...` | Set the real project id in `.firebaserc`. |
-| `'next' is not recognized` / `Command "next" not found` | Run `pnpm install` from the **repo root**. If it persists, delete all `node_modules` folders and reinstall. |
-| Ignored build scripts warning from pnpm | Build approvals live in `pnpm-workspace.yaml` (`allowBuilds`) — re-run `pnpm install`. |
-| "Missing or insufficient permissions" | Firestore security rules don't allow that access — add rules in `firebase/firestore.rules`, then deploy them (`npx firebase-tools deploy --only firestore:rules`). |
-| Commit rejected | Message must be Conventional Commits (`feat: …`, `fix: …`). |
-
-More beginner-oriented pitfalls: [docs/GUIDE.md § Common pitfalls](docs/GUIDE.md#6-common-pitfalls).
-
-## Project Structure
-
-```
-/
-├── frontend/          Next.js 16 App Router
-│   └── src/
-│       ├── app/       Pages (route groups: (auth), (dashboard))
-│       ├── components/ UI components (layout, shared)
-│       ├── features/  Feature modules (one folder per business domain)
-│       ├── lib/       Firebase client/admin (lazy init), validations, utils
-│       ├── hooks/     Custom React hooks
-│       ├── providers/ React context providers
-│       ├── actions/   Next.js Server Actions
-│       └── types/     TypeScript type definitions
-├── backend/           Cloud Functions v2 — Express fat-lambda
-│   └── src/
-│       ├── app.ts     Express app factory
-│       ├── routes/    One file per resource
-│       ├── middleware/ auth (ID token → req.user), errorHandler (RFC 9457)
-│       └── lib/       firebase (Admin singleton), errors (HttpError), zodConverter
-├── firebase/          Firestore rules, indexes
-├── docs/              Guides and reference docs — start with GUIDE.md
-└── .claude/           Claude Code harness (agents, skills, MCP, hooks)
-```
+App at [http://localhost:3000](http://localhost:3000). Restart the dev server after changing `.env`.
 
 ## Commands
 
 ```bash
 pnpm run bootstrap        # First-time: install deps, env templates
-pnpm run dev              # Frontend dev server (talks to your real Firebase project)
+pnpm run dev              # Dev server
 pnpm run build            # Build all packages
 pnpm run test             # Backend unit tests (mocked Firebase Admin)
 pnpm run test:component   # Frontend unit tests
@@ -122,87 +97,65 @@ pnpm run lint             # ESLint across all packages
 pnpm run format           # Prettier across all packages
 pnpm run typecheck        # TypeScript check across all packages
 pnpm run env:sync         # Regenerate frontend/backend env files from root .env
-pnpm run validate         # Check for unreplaced template placeholders
 ```
 
-## Security
+## Project structure
 
-Security is enforced in independent layers — Claude Code guard hooks, HTTP hardening (helmet/CORS/rate limits), token + session-cookie auth, Zod input validation, default-deny Firestore rules, and CI scanning (`pnpm audit`). See [docs/SECURITY.md](docs/SECURITY.md).
-
-### Known `pnpm audit` findings (manual fix)
-
-
-`pnpm audit` currently flags two high-severity CVEs — both transitive, dev/build-time only, not runtime-reachable:
-
-| Package | Issue | Pulled in by |
-|---------|-------|--------------|
-| `js-yaml` | CVE-2026-59870 — quadratic CPU DoS on `!!omap` resolution | eslint's dependency chain (lint-time only) |
-| `nanoid` | Infinite loop when a custom generator's `size` is 0 | postcss, used by Tailwind/Next/Vitest builds (build-time only) |
-
-To patch: add these two lines under `overrides:` in `pnpm-workspace.yaml`, then run `pnpm install`:
-
-```yaml
-  js-yaml: '^4.3.1'
-  nanoid: '^3.3.17'
+```
+/
+├── frontend/          Next.js App Router
+│   └── src/
+│       ├── app/        Pages
+│       ├── features/   Feature modules (chat, projects, files, ...)
+│       ├── components/ Shared UI
+│       └── lib/        Firebase client, utilities
+├── backend/           Express API
+│   └── src/
+│       ├── routes/     One file per resource (chat, projects, artifacts, ...)
+│       ├── middleware/ Firebase ID-token auth, RFC 9457 error handler
+│       └── lib/        Firebase Admin, AI (OpenRouter), errors
+├── firebase/          Firestore rules and indexes
+├── docs/              Reference docs
+└── scripts/           Env sync and tooling
 ```
 
-Confirm with `pnpm audit` — should show 0 high/critical findings.
+## Troubleshooting
 
-## Git Workflow
+| Symptom | What to try |
+|--------|-------------|
+| `auth/invalid-api-key` | Fill every `NEXT_PUBLIC_FIREBASE_*` value in the root `.env`, run `pnpm run env:sync`, restart the dev server. |
+| "Firebase web config is incomplete" on Vercel | A `NEXT_PUBLIC_FIREBASE_*` variable is missing in Vercel. Add it, then redeploy (existing deployments don't pick up new variables). |
+| AI replies fail or time out | The free OpenRouter models can be slow or unavailable. See Handover Document section 9.4. |
+| `'next' is not recognized` | Run `pnpm install` from the repo root. |
+| "Missing or insufficient permissions" | Check `firebase/firestore.rules`, then deploy them with `npx firebase-tools deploy --only firestore:rules`. |
+| Commit rejected | The message must follow Conventional Commits (`feat: ...`, `fix: ...`). |
+
+## Git workflow
 
 | Branch | Purpose |
 |--------|---------|
-| `main` | Production — protected, no direct pushes |
-| `feature/*` | New features → PR back to `main` |
-| `hotfix/*` | Urgent fixes → PR back to `main` |
+| `main` | Production. Protected, no direct pushes |
+| `feature/*` | New features, PR back to `main` |
+| `hotfix/*` | Urgent fixes, PR back to `main` |
 
-Use the Claude Code skills `/git-feature`, `/git-hotfix`, `/git-release`. Details: [docs/GIT-WORKFLOW.md](docs/GIT-WORKFLOW.md).
-
-## Claude Code Harness
-
-The repo ships a pre-configured harness: three MCP servers (**context7** for live library docs, **firebase** for Firestore/deploy tooling, **stitch** for design-to-code), three sub-agents (**security-reviewer**, **doc-auditor**, **test-writer**), enforcement hooks (blocks `any`, secret prefixes, direct pushes to `main`, unapproved deploys), and skills for scaffolding and quality:
-
-| Category | Skills |
-|----------|--------|
-| Setup | `/bootstrap` — guided end-to-end local setup with verification |
-| Scaffolding | `/new-feature` · `/new-page` · `/new-component` · `/firebase-collection` · `/add-auth-provider` · `/add-route` · `/evolve-schema` · `/add-env-var` |
-| Quality | `/verify` · `/checkpoint` · `/save-session` · `/resume-session` |
-| Git | `/git-feature` · `/git-hotfix` · `/git-release` |
-
-See [CLAUDE.md](CLAUDE.md) for the full harness reference.
-
-## Documentation
-
-| Topic | Link |
-|-------|------|
-| **Beginner guide (start here)** | [docs/GUIDE.md](docs/GUIDE.md) |
-| Verified walkthrough (all steps + code) | [docs/TUTORIAL-WALKTHROUGH.md](docs/TUTORIAL-WALKTHROUGH.md) |
-| Copy-paste setup (no AI, exact steps) | [docs/COPY-PASTE-SETUP.md](docs/COPY-PASTE-SETUP.md) |
-| Copy-paste feature build (no AI, exact file paths) | [docs/COPY-PASTE-FEATURE.md](docs/COPY-PASTE-FEATURE.md) |
-| Slide deck — system overview + AI tooling | [docs/garage-boilerplate-guide.pptx](docs/garage-boilerplate-guide.pptx) |
-| Slide deck — the notes feature, step by step | [docs/notes-feature-tutorial.pptx](docs/notes-feature-tutorial.pptx) |
-| Architecture + diagrams | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
-| Frontend conventions | [docs/FRONTEND.md](docs/FRONTEND.md) |
-| Backend conventions | [docs/BACKEND.md](docs/BACKEND.md) |
-| Design system | [docs/DESIGN.md](docs/DESIGN.md) |
-| Firestore schema | [docs/FIRESTORE-SCHEMA.md](docs/FIRESTORE-SCHEMA.md) |
-| Environment variables | [docs/ENV-VARS.md](docs/ENV-VARS.md) |
-| Testing | [docs/TESTING.md](docs/TESTING.md) |
-| Security | [docs/SECURITY.md](docs/SECURITY.md) |
-| Git workflow | [docs/GIT-WORKFLOW.md](docs/GIT-WORKFLOW.md) |
-| CI/CD & deployment | [docs/CI-CD.md](docs/CI-CD.md) |
+Details: [docs/GIT-WORKFLOW.md](docs/GIT-WORKFLOW.md).
 
 ## Deployment
 
-The frontend deploys to **Vercel** (free Hobby tier, no billing account needed — this app is server-rendered, so it needs a server host, not static hosting). 
-Use this to depoy to Vercel - [DEPLOY-TO-VERCEL.md](DEPLOY-TO-VERCEL.md)
+Frontend and backend deploy to **Vercel**. Steps: [DEPLOY-TO-VERCEL.md](DEPLOY-TO-VERCEL.md) and Handover Document section 9.2.
 
+## Other documentation
 
+| Topic | Link |
+|-------|------|
+| Architecture (template diagrams) | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| Frontend / Backend conventions | [docs/FRONTEND.md](docs/FRONTEND.md) · [docs/BACKEND.md](docs/BACKEND.md) |
+| Firestore schema | [docs/FIRESTORE-SCHEMA.md](docs/FIRESTORE-SCHEMA.md) |
+| Environment variables | [docs/ENV-VARS.md](docs/ENV-VARS.md) |
+| Testing · Security · CI/CD | [docs/TESTING.md](docs/TESTING.md) · [docs/SECURITY.md](docs/SECURITY.md) · [docs/CI-CD.md](docs/CI-CD.md) |
 
-## Forking for a Client Project
-
-Follow the checklist in [CLAUDE.md — Forking for a New Client Project](CLAUDE.md#forking-for-a-new-client-project), then run `pnpm run validate` to confirm no template placeholders remain.
+Some files in `docs/` come from the original template and may not match this project (see Handover Document section 9.4).
 
 ## Credits
 
-Original boilerplate by **Duc Gia Tin Huynh** ([LinkedIn](https://www.linkedin.com/in/huynhducgiatin/)).
+Built on the Garage Boilerplate by **Duc Gia Tin Huynh** ([LinkedIn](https://www.linkedin.com/in/huynhducgiatin/)).
